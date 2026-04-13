@@ -1,11 +1,12 @@
----@class Opim.Config: Opim.Opts
+---@class Opim.ConfigModule
+---@field version string
+---@field defaults Opim.Config
 local M = {}
 
 M.version = "0.0.1" -- x-release-please-version
 
----@class opim.Opts
-local defaults = {
-  ---@type Opim.Config.scope_types
+---@type Opim.Config
+M.defaults = {
   scopes = {
     lua = {
       functions = { "function_definition", "function_declaration", "local_function" },
@@ -76,6 +77,21 @@ local defaults = {
       loops = { "for_statement", "for_range_loop", "while_statement", "do_statement" },
       conditions = { "if_statement", "else_clause", "switch_statement" },
     },
+    --- typescriptreact files — vim.treesitter.language.get_lang("typescriptreact") returns "tsx"
+    tsx = {
+      functions = { "function_declaration", "function_expression", "arrow_function", "method_definition" },
+      classes = { "class_declaration", "class_expression" },
+      declarations = {
+        "lexical_declaration",
+        "variable_declaration",
+        "type_alias_declaration",
+        "interface_declaration",
+      },
+      blocks = { "statement_block" },
+      loops = { "for_statement", "for_in_statement", "while_statement", "do_statement" },
+      conditions = { "if_statement", "else_clause", "ternary_expression" },
+    },
+    --- Fallback used when the current filetype has no explicit entry.
     default = {
       functions = { "function_definition", "lambda_expression" },
       classes = { "class_specifier", "struct_specifier", "enum_specifier" },
@@ -85,10 +101,11 @@ local defaults = {
       conditions = { "if_statement", "else_clause", "switch_statement" },
     },
   },
-  -- show a warning when issues were detected with your mappings
   show_warnings = true,
   show_errors = true,
+  ---@type Opim.Keys
   keys = {
+    ---@type Opim.NormalKeys
     normal = {
       -- yank
       yank_at_parent = "yaP",
@@ -166,180 +183,18 @@ local defaults = {
       next_sibling_scope = "gsn", -- [count]gsn → nth next sibling scope
       prev_sibling_scope = "gsN", -- [count]gsN → nth prev sibling scope
     },
+    ---@type Opim.InsertKeys
     insert = {
       jump_scope_start = "<C-a>",
       jump_scope_end = "<C-e>",
     },
+    ---@type Opim.VisualKeys
     visual = {
       expand_selection = "a", -- expand to next scope up
       shrink_selection = "i", -- shrink to next scope in
     },
   },
-  debug = false, -- enable opim.log in the current directory
+  debug = false, -- write debug output to opim.log in the current directory
 }
---
--- M.loaded = false
---
--- ---@type wk.Keymap[]
--- M.mappings = {}
---
--- ---@type wk.Opts
--- M.options = nil
---
--- ---@type {opt:string, msg:string}[]
--- M.issues = {}
---
--- function M.validate()
---   local deprecated = {
---     ["operators"] = "see `opts.defer`",
---     ["key_labels"] = "see `opts.replace`",
---     "motions",
---     ["popup_mappings"] = "see `opts.keys`",
---     ["window"] = "see `opts.win`",
---     ["ignore_missing"] = "see `opts.filter`",
---     "hidden",
---     ["triggers_nowait"] = "see `opts.delay`",
---     ["triggers_blacklist"] = "see `opts.triggers`",
---     ["disable.trigger"] = "see `opts.triggers`",
---     ["modes"] = "see `opts.triggers`",
---   }
---   for k, v in pairs(deprecated) do
---     local opt = type(k) == "number" and v or k
---     local msg = "option is deprecated." .. (type(k) == "number" and "" or " " .. v)
---     local parts = vim.split(opt, ".", { plain = true })
---     if vim.tbl_get(M.options, unpack(parts)) ~= nil then
---       table.insert(M.issues, { opt = opt, msg = msg })
---     end
---   end
---   if type(M.options.triggers) ~= "table" then
---     table.insert(M.issues, { opt = "triggers", msg = "triggers must be a table" })
---   end
--- end
---
--- ---@param opts? wk.Opts
--- function M.setup(opts)
---   if vim.fn.has("nvim-0.9.4") == 0 then
---     return vim.notify("which-key.nvim requires Neovim >= 0.9.4", vim.log.levels.ERROR)
---   end
---   M.options = vim.tbl_deep_extend("force", {}, defaults, opts or {})
---
---   local function load()
---     if M.loaded then
---       return
---     end
---     local Util = require("which-key.util")
---
---     if M.options.preset then
---       local Presets = require("which-key.presets")
---       M.options = vim.tbl_deep_extend("force", {}, defaults, Presets[M.options.preset] or {}, opts or {})
---     end
---
---     M.validate()
---     if #M.issues > 0 then
---       Util.warn({
---         "There are issues with your config.",
---         "Use `:checkhealth which-key` to find out more.",
---       }, { once = true })
---     end
---
---     for k, v in pairs(M.options.keys) do
---       M.options.keys[k] = Util.norm(v)
---     end
---
---     if M.options.debug then
---       Util.debug("\n\nDebug Started for v" .. M.version)
---       if package.loaded.lazy then
---         local Git = require("lazy.manage.git")
---         local plugin = require("lazy.core.config").plugins["which-key.nvim"]
---         Util.debug(vim.inspect(Git.info(plugin.dir)))
---       end
---     end
---
---     local wk = require("which-key")
---
---     -- replace by the real add function
---     wk.add = M.add
---
---     if type(M.options.triggers) ~= "table" then
---       ---@diagnostic disable-next-line: inject-field
---       M.options.triggers = defaults.triggers
---     end
---
---     M.triggers = {
---       mappings = require("which-key.mappings").parse(M.options.triggers),
---       modes = {},
---     }
---     ---@param m wk.Mapping
---     M.triggers.mappings = vim.tbl_filter(function(m)
---       if m.lhs == "<auto>" then
---         M.triggers.modes[m.mode] = true
---         return false
---       end
---       return true
---     end, M.triggers.mappings)
---
---     -- load presets first so that they can be overriden by the user
---     require("which-key.plugins").setup()
---
---     -- process mappings queue
---     for _, todo in ipairs(wk._queue) do
---       M.add(todo.spec, todo.opts)
---     end
---     wk._queue = {}
---
---     -- finally, add the mapppings from the config
---     M.add(M.options.spec)
---
---     -- setup colors and start which-key
---     require("which-key.colors").setup()
---     require("which-key.state").setup()
---
---     M.loaded = true
---   end
---   local _load = vim.schedule_wrap(load)
---
---   if vim.v.vim_did_enter == 1 then
---     _load()
---   else
---     vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = _load })
---   end
---
---   vim.api.nvim_create_user_command("WhichKey", function(cmd)
---     load()
---     local mode, keys = cmd.args:match("^([nixsotc]?)%s*(.*)$")
---     if not mode then
---       return require("which-key.util").error("Usage: WhichKey [mode] [keys]")
---     end
---     if mode == "" then
---       mode = "n"
---     end
---     require("which-key").show({ mode = mode, keys = keys })
---   end, {
---     nargs = "*",
---   })
--- end
---
--- ---@param opts? wk.Parse
--- ---@param mappings wk.Spec
--- function M.add(mappings, opts)
---   opts = opts or {}
---   opts.create = opts.create ~= false
---   local Mappings = require("which-key.mappings")
---   for _, km in ipairs(Mappings.parse(mappings, opts)) do
---     table.insert(M.mappings, km)
---     km.idx = #M.mappings
---   end
---   if M.loaded then
---     require("which-key.buf").clear()
---   end
--- end
---
--- return setmetatable(M, {
---   __index = function(_, k)
---     if rawget(M, "options") == nil then
---       M.setup()
---     end
---     local opts = rawget(M, "options")
---     return k == "options" and opts or opts[k]
---   end,
--- })
+
+return M

@@ -1,52 +1,32 @@
----@class wk
----@field private _queue {spec: wk.Spec, opts?: wk.Parse}[]
+---@class Opim
+---@field is_setup boolean
+---@field is_error boolean
+---@field config Opim.Config
 local M = {}
 
-M._queue = {}
-M.did_setup = false
+local defaults = require("opim.config").defaults
+local utils = require("opim.utils")
+local log = require("opim.log")
 
---- Open which-key
----@param opts? wk.Filter|string
-function M.show(opts)
-  opts = opts or {}
-  opts = type(opts) == "string" and { keys = opts } or opts
-  if opts.delay == nil then
-    opts.delay = 0
-  end
-  opts.waited = vim.o.timeoutlen
-  ---@diagnostic disable-next-line: param-type-mismatch
-  if not require("which-key.state").start(opts) then
-    require("which-key.util").warn(
-      "No mappings found for mode `" .. (opts.mode or "n") .. "` and keys `" .. (opts.keys or "") .. "`"
+M.is_setup = false
+M.is_error = false
+
+---@param opts? Opim.Opts
+function M.setup(opts)
+  if not utils.has_treesitter() then
+    M.is_error = true
+    return vim.notify(
+      "TreeSitter is not available in this Neovim build. Opim requires TreeSitter to function.",
+      vim.log.levels.ERROR,
+      { title = "Opim" }
     )
   end
-end
-
----@param opts? wk.Opts
-function M.setup(opts)
-  M.did_setup = true
-  require("opim.config").setup(opts)
-end
-
--- Use `require("which-key").add()` instead.
--- The spec is different though, so check the docs!
----@deprecated
----@param mappings wk.Spec
----@param opts? wk.Mapping
-function M.register(mappings, opts)
-  if opts then
-    for k, v in pairs(opts) do
-      mappings[k] = v
-    end
-  end
-  M.add(mappings, { version = 1 })
-end
-
---- Add mappings to which-key
----@param mappings wk.Spec
----@param opts? wk.Parse
-function M.add(mappings, opts)
-  table.insert(M._queue, { spec = mappings, opts = opts })
+  M.is_setup = true
+  M.config = vim.tbl_deep_extend("force", {}, defaults, opts or {}) --[[@as Opim.Config]]
+  log.init(M.config.debug)
+  log.debug("setup() called")
+  log.debug("config: " .. vim.inspect(M.config))
+  require("opim.keymap").setup(M.config)
 end
 
 return M

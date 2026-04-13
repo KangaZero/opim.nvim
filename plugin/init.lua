@@ -5,7 +5,7 @@ timer:start(
   0,
   vim.schedule_wrap(function()
     local opim = require("opim")
-    if not opim.did_setup then
+    if not opim.is_setup then
       opim.setup()
     end
   end)

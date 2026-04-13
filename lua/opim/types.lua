@@ -2,129 +2,276 @@
 
 --# selene: allow(unused_variable)
 
+---@alias Opim.FunctionNodeType
+---| "function_definition"   -- lua, python, c, cpp
+---| "function_declaration"  -- javascript, typescript, go
+---| "function_expression"   -- javascript, typescript
+---| "local_function"        -- lua
+---| "async_function_definition" -- python
+---| "arrow_function"        -- javascript, typescript
+---| "method_definition"     -- javascript, typescript
+---| "method_declaration"    -- go
+---| "func_literal"          -- go
+---| "function_item"         -- rust
+---| "closure_expression"    -- rust
+---| "lambda_expression"     -- cpp
+
+---@alias Opim.ClassNodeType
+---| "class_definition"   -- python
+---| "class_declaration"  -- javascript, typescript
+---| "class_expression"   -- javascript, typescript
+---| "class_specifier"    -- cpp
+---| "struct_item"        -- rust
+---| "struct_specifier"   -- c, cpp
+---| "enum_item"          -- rust
+---| "enum_specifier"     -- c, cpp
+---| "union_specifier"    -- c
+---| "impl_item"          -- rust
+---| "trait_item"         -- rust
+---| "type_declaration"   -- go
+
+---@alias Opim.DeclarationNodeType
+---| "local_variable_declaration" -- lua
+---| "variable_declaration"       -- lua, javascript
+---| "lexical_declaration"        -- javascript, typescript
+---| "type_alias_declaration"     -- typescript, cpp
+---| "interface_declaration"      -- typescript
+---| "assignment"                 -- python
+---| "augmented_assignment"       -- python
+---| "let_declaration"            -- rust
+---| "const_item"                 -- rust
+---| "static_item"                -- rust
+---| "type_item"                  -- rust
+---| "var_declaration"            -- go
+---| "const_declaration"          -- go
+---| "short_var_declaration"      -- go
+---| "declaration"                -- c, cpp
+
+---@alias Opim.BlockNodeType
+---| "block"              -- lua, python, rust, go
+---| "do_statement"       -- lua
+---| "statement_block"    -- javascript, typescript
+---| "compound_statement" -- c, cpp
+
+---@alias Opim.LoopNodeType
+---| "for_statement"    -- lua, python, javascript, typescript, go, c, cpp
+---| "while_statement"  -- lua, python, javascript, typescript, c, cpp
+---| "repeat_statement" -- lua
+---| "for_in_statement" -- javascript, typescript
+---| "do_statement"     -- javascript, typescript, c, cpp
+---| "for_range_loop"   -- cpp
+---| "for_expression"   -- rust
+---| "while_expression" -- rust
+---| "loop_expression"  -- rust
+
+---@alias Opim.ConditionNodeType
+---| "if_statement"              -- lua, python, javascript, typescript, go, c, cpp
+---| "elseif_clause"             -- lua
+---| "else_clause"               -- lua, python, javascript, typescript, rust, go, c, cpp
+---| "elif_clause"               -- python
+---| "ternary_expression"        -- javascript, typescript
+---| "if_expression"             -- rust
+---| "match_expression"          -- rust
+---| "match_arm"                 -- rust
+---| "expression_switch_statement" -- go
+---| "switch_statement"          -- c, cpp
+
+--- The valid keys of Opim.ScopeCategory — used to index into a language's scope config.
+---@alias Opim.ScopeCategoryKey "functions"|"classes"|"declarations"|"blocks"|"loops"|"conditions"
+
+--- A function that performs an operation on a resolved scope node.
+---@alias Opim.NodeAction fun(node: TSNode, bufnr: integer): nil
+
+--- One language's TreeSitter node type names, bucketed by scope kind.
+---@class Opim.ScopeCategory
+---@field functions Opim.FunctionNodeType[] node types that represent function definitions
+---@field classes Opim.ClassNodeType[] node types that represent class/struct/trait definitions
+---@field declarations Opim.DeclarationNodeType[] node types that represent variable/type declarations
+---@field blocks Opim.BlockNodeType[] node types that represent code blocks
+---@field loops Opim.LoopNodeType[] node types that represent loop statements
+---@field conditions Opim.ConditionNodeType[] node types that represent conditional statements
+
+--- TreeSitter language names used as keys in Opim.Scopes.
+--- These are the values returned by vim.treesitter.language.get_lang(), NOT filetype names.
+--- e.g. filetype "typescriptreact" → ts lang "tsx", filetype "javascriptreact" → ts lang "javascript"
+---@alias LanugageFileType
+---| "lua"
+---| "python"
+---| "javascript"
+---| "typescript"
+---| "tsx"
+---| "rust"
+---| "go"
+---| "c"
+---| "cpp"
+---| "default"
+--- Maps a filetype name (e.g. "lua", "python") to its scope categories.
+--- The special key "default" is used as a fallback for unknown filetypes.
+---@alias Opim.Scopes table<LanugageFileType, Opim.ScopeCategory>
+
+--- Normal-mode keybinding strings for every scope operation.
+---@class Opim.NormalKeys
+---@field yank_at_parent string
+---@field yank_at_function string
+---@field yank_at_declaration string
+---@field yank_at_loop string
+---@field yank_at_condition string
+---@field yank_in_parent string
+---@field yank_in_function string
+---@field yank_in_declaration string
+---@field yank_in_loop string
+---@field yank_in_condition string
+---@field delete_at_parent string
+---@field delete_at_function string
+---@field delete_at_declaration string
+---@field delete_at_loop string
+---@field delete_at_condition string
+---@field delete_in_parent string
+---@field delete_in_function string
+---@field delete_in_declaration string
+---@field delete_in_loop string
+---@field delete_in_condition string
+---@field visual_at_parent string
+---@field visual_at_function string
+---@field visual_at_declaration string
+---@field visual_at_loop string
+---@field visual_at_condition string
+---@field visual_in_parent string
+---@field visual_in_function string
+---@field visual_in_declaration string
+---@field visual_in_loop string
+---@field visual_in_condition string
+---@field change_at_parent string
+---@field change_at_function string
+---@field change_at_declaration string
+---@field change_at_loop string
+---@field change_at_condition string
+---@field change_in_parent string
+---@field change_in_function string
+---@field change_in_declaration string
+---@field change_in_loop string
+---@field change_in_condition string
+---@field next_function string go to the [count]th next function
+---@field prev_function string go to the [count]th previous function
+---@field next_class string go to the [count]th next class
+---@field prev_class string go to the [count]th previous class
+---@field next_declaration string go to the [count]th next declaration
+---@field prev_declaration string go to the [count]th previous declaration
+---@field next_block string go to the [count]th next block
+---@field prev_block string go to the [count]th previous block
+---@field next_loop string go to the [count]th next loop
+---@field prev_loop string go to the [count]th previous loop
+---@field next_condition string go to the [count]th next condition
+---@field prev_condition string go to the [count]th previous condition
+---@field goto_parent string go up one level to the enclosing scope
+---@field goto_child string go down to the first child scope
+---@field next_sibling_scope string move to the [count]th next sibling scope
+---@field prev_sibling_scope string move to the [count]th previous sibling scope
+
+---@class Opim.InsertKeys
+---@field jump_scope_start string jump to the start of the enclosing scope
+---@field jump_scope_end string jump to the end of the enclosing scope
+
+---@class Opim.VisualKeys
+---@field expand_selection string expand the visual selection up to the next scope
+---@field shrink_selection string shrink the visual selection down to the inner scope
+
+---@class Opim.Keys
+---@field normal Opim.NormalKeys
+---@field insert Opim.InsertKeys
+---@field visual Opim.VisualKeys
+
+--- Partial user overrides for normal-mode keys.
+--- Pass `false` to disable a keymap entirely, a string to remap it, or omit to keep the default.
+---@class Opim.PartialNormalKeys
+---@field yank_at_parent? string|false
+---@field yank_at_function? string|false
+---@field yank_at_declaration? string|false
+---@field yank_at_loop? string|false
+---@field yank_at_condition? string|false
+---@field yank_in_parent? string|false
+---@field yank_in_function? string|false
+---@field yank_in_declaration? string|false
+---@field yank_in_loop? string|false
+---@field yank_in_condition? string|false
+---@field delete_at_parent? string|false
+---@field delete_at_function? string|false
+---@field delete_at_declaration? string|false
+---@field delete_at_loop? string|false
+---@field delete_at_condition? string|false
+---@field delete_in_parent? string|false
+---@field delete_in_function? string|false
+---@field delete_in_declaration? string|false
+---@field delete_in_loop? string|false
+---@field delete_in_condition? string|false
+---@field visual_at_parent? string|false
+---@field visual_at_function? string|false
+---@field visual_at_declaration? string|false
+---@field visual_at_loop? string|false
+---@field visual_at_condition? string|false
+---@field visual_in_parent? string|false
+---@field visual_in_function? string|false
+---@field visual_in_declaration? string|false
+---@field visual_in_loop? string|false
+---@field visual_in_condition? string|false
+---@field change_at_parent? string|false
+---@field change_at_function? string|false
+---@field change_at_declaration? string|false
+---@field change_at_loop? string|false
+---@field change_at_condition? string|false
+---@field change_in_parent? string|false
+---@field change_in_function? string|false
+---@field change_in_declaration? string|false
+---@field change_in_loop? string|false
+---@field change_in_condition? string|false
+---@field next_function? string|false
+---@field prev_function? string|false
+---@field next_class? string|false
+---@field prev_class? string|false
+---@field next_declaration? string|false
+---@field prev_declaration? string|false
+---@field next_block? string|false
+---@field prev_block? string|false
+---@field next_loop? string|false
+---@field prev_loop? string|false
+---@field next_condition? string|false
+---@field prev_condition? string|false
+---@field goto_parent? string|false
+---@field goto_child? string|false
+---@field next_sibling_scope? string|false
+---@field prev_sibling_scope? string|false
+
+---@class Opim.PartialInsertKeys
+---@field jump_scope_start? string|false
+---@field jump_scope_end? string|false
+
+---@class Opim.PartialVisualKeys
+---@field expand_selection? string|false
+---@field shrink_selection? string|false
+
+---@class Opim.PartialKeys
+---@field normal? Opim.PartialNormalKeys
+---@field insert? Opim.PartialInsertKeys
+---@field visual? Opim.PartialVisualKeys
+
+--- The resolved, fully-populated plugin configuration (no optional fields).
 ---@class Opim.Config
----@field scope_types table<string, string[]> node type names per filetype
----@field keymaps OpScopeKeymaps
+---@field scopes Opim.Scopes TreeSitter node type names keyed by filetype
+---@field show_warnings boolean emit a warning when keymap conflicts are detected
+---@field show_errors boolean emit an error on setup failures
+---@field keys Opim.Keys mode-specific keybinding definitions
+---@field debug boolean write debug output to opim.log in the cwd
 
----@class Opim.Keymap
----@field select string keymap to visually select scope
----@field yank string keymap to yank scope
----@field delete string keymap to delete scope
+--- User-supplied setup options. Every field is optional — omitted fields fall back to plugin defaults.
+---@class Opim.Opts
+---@field scopes? Opim.Scopes override or extend the per-filetype scope node types
+---@field show_warnings? boolean
+---@field show_errors? boolean
+---@field keys? Opim.PartialKeys pass false for any key to disable it, a string to remap it
+---@field debug? boolean
 
+--- A thin wrapper around a TreeSitter node that carries pre-extracted metadata.
 ---@class Opim.Node
----@field node TSNode the treesitter node
----@field type string node type string
----@field range number[] { start_row, start_column, end_row, end_column }
----
---#-@field mode? string
---#-@field buf? number
---#-@field keys? string
---#-@field global? boolean
---#-@field local? boolean
---#-@field update? boolean
---#-@field delay? number
---#-@field loop? boolean
---#-@field defer? boolean don't show the popup immediately. Wait for the first key to be pressed
---#-@field waited? number
---#-@field check? boolean
---#-@field expand? boolean
-
---#-@class wk.Icon
---#-@field icon? string
---#-@field hl? string
---#-@field cat? "file" | "filetype" | "extension"
---#-@field name? string
---#-@field color? false | "azure" | "blue" | "cyan" | "green" | "grey" | "orange" | "purple" | "red" | "yellow"
-
---#-@class wk.IconProvider
---#-@field name string
---#-@field available? boolean
---#-@field get fun(icon: wk.Icon):(icon: string?, hl: string?)
-
---#-@class wk.IconRule: wk.Icon
---#-@field pattern? string
---#-@field plugin? string
-
---#-@class wk.Keymap: vim.api.keyset.keymap
---#-@field lhs string
---#-@field mode string
---#-@field rhs? string|fun()
---#-@field lhsraw? string
---#-@field buffer? number
-
---#- Represents a node in the which-key tree
---#-@class opium.Node: wk.Mapping
---#-@field key string single key of the node
---#-@field path string[] path to the node (all keys leading to this node)
---#-@field keys string full key sequence
---#-@field parent? wk.Node parent node
---#-@field keymap? wk.Keymap Real keymap
---#-@field mapping? wk.Mapping Mapping info supplied by user
---#-@field action? fun() action to execute when node is selected (used by plugins)
-
---#-@class wk.Mapping: wk.Keymap
---#-@field idx? number
---#-@field plugin? string
---#-@field group? boolean
---#-@field remap? boolean
---#-@field hidden? boolean
---#-@field real? boolean this is a mapping for a real keymap. Hide it if the real keymap does not exist
---#-@field preset? boolean
---#-@field icon? wk.Icon|string
---#-@field proxy? string
---#-@field expand? fun():wk.Spec
-
---#-@class wk.Spec: {[number]: wk.Spec} , wk.Mapping
---#-@field [1]? string
---#-@field [2]? string|fun()
---#-@field lhs? string
---#-@field group? string|fun():string
---#-@field desc? string|fun():string
---#-@field icon? wk.Icon|string|fun():(wk.Icon|string)
---#-@field buffer? number|boolean
---#-@field mode? string|string[]
---#-@field cond? boolean|fun():boolean?
-
---#-@class wk.Win.opts: vim.api.keyset.win_config
---#-@field width? wk.Dim
---#-@field height? wk.Dim
---#-@field wo? vim.wo
---#-@field bo? vim.bo
---#-@field padding? {[1]: number, [2]:number}
---#-@field no_overlap? boolean
-
---#-@class wk.Col
---#-@field key string
---#-@field hl? string
---#-@field width? number
---#-@field padding? number[]
---#-@field default? string
---#-@field align? "left"|"right"|"center"
-
---#-@class wk.Table.opts
---#-@field cols wk.Col[]
---#-@field rows table<string, string>[]
-
---#-@class wk.Plugin.item
---#-@field key string
---#-@field value string
---#-@field desc string
---#-@field order? number
---#-@field action? fun()
-
---#-@class wk.Plugin
---#-@field name string
---#-@field cols? wk.Col[]
---#-@field mappings? wk.Spec
---#-@field expand fun():wk.Plugin.item[]
---#-@field setup fun(opts: table<string, any>)
-
---#-@class wk.Item: wk.Node
---#-@field node wk.Node
---#-@field key string
---#-@field raw_key string
---#-@field desc string
---#-@field group? boolean
---#-@field order? number
---#-@field icon? string
---#-@field icon_hl? string
+---@field node TSNode the underlying TreeSitter node
+---@field type string TreeSitter node type string (e.g. "function_definition")
+---@field range integer[] four-element tuple: { start_row, start_col, end_row, end_col }
