@@ -4,7 +4,7 @@
 -- ─── Minimal ────────────────────────────────────────────────────────────────
 -- Zero configuration. The plugin auto-initialises 500ms after Neovim starts.
 {
-  "yourname/opim.nvim",
+  "KangaZero/opim.nvim",
 }
 
 -- ─── With options ───────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@
 -- vim.tbl_deep_extend merges your opts into the defaults, so you only need
 -- to specify what you want to change.
 {
-  "yourname/opim.nvim",
+  "KangaZero/opim.nvim",
   config = function()
     require("opim").setup({
 

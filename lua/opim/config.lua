@@ -163,6 +163,7 @@ M.defaults = {
       change_in_loop = "cil",
       change_in_condition = "cic",
 
+      --TODO: implement the below
       -- navigate (all support [count] prefix)
       next_function = "mf", -- [count]mf → nth next function
       prev_function = "mF", -- [count]mF → nth prev function
