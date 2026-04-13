@@ -100,10 +100,7 @@ function M.current_scope_category()
     if not config.defaults.scopes[ft] then
       log.debug("current_scope_category: custom scope for " .. ft)
       if opim.config.show_warnings then
-        vim.notify(
-          "opim: using custom scope configuration for filetype '" .. ft .. "'",
-          vim.log.levels.WARN
-        )
+        vim.notify("opim: using custom scope configuration for filetype '" .. ft .. "'", vim.log.levels.WARN)
       end
     else
       log.debug("current_scope_category: built-in scope for " .. ft)
@@ -133,12 +130,12 @@ end
 --- Singular display names for each scope category key, used in notifications.
 ---@type table<Opim.ScopeCategoryKey, string>
 local category_singular = {
-  functions    = "function",
-  classes      = "class",
+  functions = "function",
+  classes = "class",
   declarations = "declaration",
-  blocks       = "block",
-  loops        = "loop",
-  conditions   = "condition",
+  blocks = "block",
+  loops = "loop",
+  conditions = "condition",
 }
 
 -- Scope execution -------------------------------------------------------------
@@ -149,18 +146,27 @@ local category_singular = {
 ---@param inner boolean
 ---@param action Opim.NodeAction
 function M.execute_scope(category_key, inner, action)
-  if not M.ts_guard() then return end
+  if not M.ts_guard() then
+    return
+  end
 
   local node = vim.treesitter.get_node()
-  if not node then return end
+  if not node then
+    return
+  end
 
   local bufnr = vim.api.nvim_get_current_buf()
   local cat = M.current_scope_category()
   local types = cat[category_key]
 
-  log.debug(("execute_scope: ft=%s category=%s inner=%s cursor_node=%s"):format(
-    vim.bo.filetype, category_key, tostring(inner), node:type()
-  ))
+  log.debug(
+    ("execute_scope: ft=%s category=%s inner=%s cursor_node=%s"):format(
+      vim.bo.filetype,
+      category_key,
+      tostring(inner),
+      node:type()
+    )
+  )
 
   if not types or #types == 0 then
     log.debug("execute_scope: no types configured for " .. category_key)
@@ -171,7 +177,10 @@ function M.execute_scope(category_key, inner, action)
   local scope_node = M.find_ancestor(node, M.to_set(types))
   if not scope_node then
     log.debug("execute_scope: no enclosing " .. category_key .. " found")
-    vim.notify("opim: no enclosing " .. (category_singular[category_key] or category_key) .. " found", vim.log.levels.INFO)
+    vim.notify(
+      "opim: no enclosing " .. (category_singular[category_key] or category_key) .. " found",
+      vim.log.levels.INFO
+    )
     return
   end
 
@@ -192,45 +201,105 @@ function M.execute_scope(category_key, inner, action)
   end
 end
 
+function test()
+  local function prettify_sexpr(str)
+    local result = {}
+    local indent = 0
+    local i = 1
+
+    while i <= #str do
+      local ch = str:sub(i, i)
+      if ch == "(" then
+        table.insert(result, string.rep("  ", indent) .. "(")
+        indent = indent + 1
+      elseif ch == ")" then
+        indent = indent - 1
+        table.insert(result, string.rep("  ", indent) .. ")")
+      elseif ch == " " then
+        table.insert(result, "\n")
+      else
+        -- accumulate word
+        local word = ""
+        while i <= #str and str:sub(i, i) ~= " " and str:sub(i, i) ~= "(" and str:sub(i, i) ~= ")" do
+          word = word .. str:sub(i, i)
+          i = i + 1
+        end
+        table.insert(result, string.rep("  ", indent) .. word)
+        i = i - 1
+      end
+      i = i + 1
+    end
+
+    return table.concat(result, "\n")
+  end
+
+  --
+  -- -- dump to scratch buffer
+  -- vim.cmd("enew")
+  -- vim.bo.buftype = "nofile"
+  -- vim.bo.filetype = "scheme"  -- scheme syntax highlighting looks great on sexprs
+  -- vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(pretty, "\n"))
+  local tree = vim.treesitter.get_parser():parse(true)[1]
+  local root = tree:root()
+  local pretty = prettify_sexpr(root:sexpr())
+  -- print(root:sexpr())
+  local f = io.open("./tree.txt", "w")
+  if f then
+    f:write(pretty)
+    f:close()
+  end
+end
+
 --- Find the nearest enclosing scope of ANY configured category and run `action` on it.
 ---@param inner boolean
 ---@param action Opim.NodeAction
 function M.execute_parent(inner, action)
-  if not M.ts_guard() then return end
-
-  local node = vim.treesitter.get_node()
-  if not node then return end
-
-  local bufnr = vim.api.nvim_get_current_buf()
-  local cat = M.current_scope_category()
-
-  log.debug(("execute_parent: ft=%s inner=%s cursor_node=%s"):format(
-    vim.bo.filetype, tostring(inner), node:type()
-  ))
-
-  local all_types = {} ---@type string[]
-  for _, types in pairs(cat) do
-    for _, t in ipairs(types) do
-      table.insert(all_types, t)
-    end
-  end
-
-  local scope_node = M.find_ancestor(node, M.to_set(all_types))
-  if not scope_node then
-    log.debug("execute_parent: no enclosing scope found")
-    vim.notify("opim: no enclosing scope found", vim.log.levels.INFO)
+  if not M.ts_guard() then
     return
   end
 
-  local sr, sc, er, ec = scope_node:range()
-  log.debug(("execute_parent: found %s at %d:%d-%d:%d"):format(scope_node:type(), sr + 1, sc, er + 1, ec))
-
-  if inner and #cat.blocks > 0 then
-    local body = M.find_body_child(scope_node, M.to_set(cat.blocks))
-    action(body or scope_node, bufnr)
-  else
-    action(scope_node, bufnr)
+  local node = vim.treesitter.get_node()
+  if not node then
+    return vim.notify("opim: no syntax node under cursor", vim.log.levels.INFO)
   end
+
+  local parent_node = node:parent()
+  if not parent_node then
+    return vim.notify("opim: no parent node under cursor", vim.log.levels.INFO)
+  end
+
+  local start_row, start_col, end_row, end_col = parent_node:range(false)
+  local bufnr = vim.api.nvim_get_current_buf()
+
+  action(parent_node, bufnr)
+  --
+  -- local cat = M.current_scope_category()
+  --
+  -- log.debug(("execute_parent: ft=%s inner=%s cursor_node=%s"):format(vim.bo.filetype, tostring(inner), node:type()))
+  --
+  -- local all_types = {} ---@type string[]
+  -- for _, types in pairs(cat) do
+  --   for _, t in ipairs(types) do
+  --     table.insert(all_types, t)
+  --   end
+  -- end
+  --
+  -- local scope_node = M.find_ancestor(node, M.to_set(all_types))
+  -- if not scope_node then
+  --   log.debug("execute_parent: no enclosing scope found")
+  --   vim.notify("opim: no enclosing scope found", vim.log.levels.INFO)
+  --   return
+  -- end
+  --
+  -- local sr, sc, er, ec = scope_node:range()
+  -- log.debug(("execute_parent: found %s at %d:%d-%d:%d"):format(scope_node:type(), sr + 1, sc, er + 1, ec))
+  --
+  -- if inner and #cat.blocks > 0 then
+  --   local body = M.find_body_child(scope_node, M.to_set(cat.blocks))
+  --   action(body or scope_node, bufnr)
+  -- else
+  --   action(scope_node, bufnr)
+  -- end
 end
 
 return M

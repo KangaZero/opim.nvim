@@ -1,5 +1,9 @@
 -- require("opim").setup()
 local timer = (vim.uv or vim.loop).new_timer()
+if not timer then
+  vim.notify("opim: failed to create timer for deferred setup", vim.log.levels.ERROR)
+  return
+end
 timer:start(
   500,
   0,

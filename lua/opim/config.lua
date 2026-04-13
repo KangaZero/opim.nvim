@@ -195,7 +195,7 @@ M.defaults = {
       shrink_selection = "i", -- shrink to next scope in
     },
   },
-  debug = false, -- write debug output to opim.log in the current directory
+  debug = true, -- write debug output to opim.log in the current directory
 }
 
 return M

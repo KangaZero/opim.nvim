@@ -10,7 +10,7 @@ function M.setup(config)
   local i = config.keys.insert
   local v = config.keys.visual
 
-  local yank_ops   = require("opim.yank-operations")
+  local yank_ops = require("opim.yank-operations")
   local delete_ops = require("opim.delete-operations")
   local visual_ops = require("opim.visual-operations")
   local change_ops = require("opim.change-operations")
@@ -34,31 +34,63 @@ function M.setup(config)
   -- so we iterate a list and index into each module directly.
 
   for _, name in ipairs({
-    "yank_at_parent", "yank_at_function", "yank_at_declaration", "yank_at_loop", "yank_at_condition",
-    "yank_in_parent", "yank_in_function", "yank_in_declaration", "yank_in_loop", "yank_in_condition",
+    "yank_at_parent",
+    "yank_at_function",
+    "yank_at_declaration",
+    "yank_at_loop",
+    "yank_at_condition",
+    "yank_in_parent",
+    "yank_in_function",
+    "yank_in_declaration",
+    "yank_in_loop",
+    "yank_in_condition",
   }) do
     map("n", n[name], yank_ops[name], name:gsub("_", " "))
   end
 
   for _, name in ipairs({
-    "delete_at_parent", "delete_at_function", "delete_at_declaration", "delete_at_loop", "delete_at_condition",
-    "delete_in_parent", "delete_in_function", "delete_in_declaration", "delete_in_loop", "delete_in_condition",
+    "delete_at_parent",
+    "delete_at_function",
+    "delete_at_declaration",
+    "delete_at_loop",
+    "delete_at_condition",
+    "delete_in_parent",
+    "delete_in_function",
+    "delete_in_declaration",
+    "delete_in_loop",
+    "delete_in_condition",
   }) do
     map("n", n[name], delete_ops[name], name:gsub("_", " "))
   end
 
   for _, name in ipairs({
-    "visual_at_parent", "visual_at_function", "visual_at_declaration", "visual_at_loop", "visual_at_condition",
-    "visual_in_parent", "visual_in_function", "visual_in_declaration", "visual_in_loop", "visual_in_condition",
+    "visual_at_parent",
+    "visual_at_function",
+    "visual_at_declaration",
+    "visual_at_loop",
+    "visual_at_condition",
+    "visual_in_parent",
+    "visual_in_function",
+    "visual_in_declaration",
+    "visual_in_loop",
+    "visual_in_condition",
   }) do
     map("n", n[name], visual_ops[name], name:gsub("_", " "))
   end
 
   for _, name in ipairs({
-    "change_at_parent", "change_at_function", "change_at_declaration", "change_at_loop", "change_at_condition",
-    "change_in_parent", "change_in_function", "change_in_declaration", "change_in_loop", "change_in_condition",
+    "change_at_parent",
+    "change_at_function",
+    "change_at_declaration",
+    "change_at_loop",
+    "change_at_condition",
+    "change_in_parent",
+    "change_in_function",
+    "change_in_declaration",
+    "change_in_loop",
+    "change_in_condition",
   }) do
-    map("n", n[name], change_ops[name], name:gsub("_", " "))
+    map({ "n", "v" }, n[name], change_ops[name], name:gsub("_", " "))
   end
 
   -- navigate, traverse, insert, visual expand/shrink — wired once those modules exist
