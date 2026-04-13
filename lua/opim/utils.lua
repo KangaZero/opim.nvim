@@ -3,18 +3,15 @@ local M = {}
 
 local config = require("opim.config")
 local log = require("opim.log")
-local language_scopes = vim.tbl_keys(config.defaults.scopes)
 
 --- Returns true if the current buffer's filetype has a configured scope entry.
+--- Checks the merged user config so user-added languages are included.
 ---@return boolean
 function M.is_valid_file_type()
-  local file_type = vim.bo.filetype
-  for _, language in ipairs(language_scopes) do
-    if language == file_type then
-      return true
-    end
-  end
-  return false
+  local ft = vim.bo.filetype
+  local opim = require("opim")
+  local scopes = (opim.is_setup and opim.config.scopes) or config.defaults.scopes
+  return scopes[ft] ~= nil
 end
 
 --- Returns true if the TreeSitter module is available in this Neovim build.
@@ -89,10 +86,33 @@ function M.find_body_child(node, type_set)
 end
 
 --- Returns the scope category for the current buffer's filetype, falling back to "default".
+--- Uses the merged user config (respecting user-added scopes), with a warning if the
+--- matched language is not one of the built-in defaults.
 ---@return Opim.ScopeCategory
 function M.current_scope_category()
   local ft = M.ts_lang() or vim.bo.filetype
-  return config.defaults.scopes[ft] or config.defaults.scopes.default
+  -- require("opim") inside the function body is safe — by call time both modules are cached
+  local opim = require("opim")
+  local scopes = (opim.is_setup and opim.config.scopes) or config.defaults.scopes
+
+  local cat = scopes[ft]
+  if cat then
+    if not config.defaults.scopes[ft] then
+      log.debug("current_scope_category: custom scope for " .. ft)
+      if opim.config.show_warnings then
+        vim.notify(
+          "opim: using custom scope configuration for filetype '" .. ft .. "'",
+          vim.log.levels.WARN
+        )
+      end
+    else
+      log.debug("current_scope_category: built-in scope for " .. ft)
+    end
+    return cat
+  end
+
+  log.debug("current_scope_category: no scope for " .. ft .. ", falling back to default")
+  return scopes.default
 end
 
 --- Verify treesitter is available and a parser exists for the current buffer.
@@ -109,6 +129,17 @@ function M.ts_guard()
   end
   return true
 end
+
+--- Singular display names for each scope category key, used in notifications.
+---@type table<Opim.ScopeCategoryKey, string>
+local category_singular = {
+  functions    = "function",
+  classes      = "class",
+  declarations = "declaration",
+  blocks       = "block",
+  loops        = "loop",
+  conditions   = "condition",
+}
 
 -- Scope execution -------------------------------------------------------------
 
@@ -140,7 +171,7 @@ function M.execute_scope(category_key, inner, action)
   local scope_node = M.find_ancestor(node, M.to_set(types))
   if not scope_node then
     log.debug("execute_scope: no enclosing " .. category_key .. " found")
-    vim.notify("opim: no enclosing " .. category_key:sub(1, -2) .. " found", vim.log.levels.INFO)
+    vim.notify("opim: no enclosing " .. (category_singular[category_key] or category_key) .. " found", vim.log.levels.INFO)
     return
   end
 

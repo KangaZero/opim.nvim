@@ -22,7 +22,7 @@ function M.setup(config)
   ---@param fn function
   ---@param desc string
   local function map(mode, key, fn, desc)
-    if not key or key == false or key == "" then
+    if not key or key == "" then
       log.debug(("keymap: skipped %s (disabled)"):format(desc))
       return
     end
