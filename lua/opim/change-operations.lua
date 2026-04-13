@@ -15,15 +15,35 @@ local function change(node, bufnr)
   vim.cmd("startinsert")
 end
 
-function M.change_at_function()    utils.execute_scope("functions",    false, change) end
-function M.change_in_function()    utils.execute_scope("functions",    true,  change) end
-function M.change_at_declaration() utils.execute_scope("declarations", false, change) end
-function M.change_in_declaration() utils.execute_scope("declarations", true,  change) end
-function M.change_at_loop()        utils.execute_scope("loops",        false, change) end
-function M.change_in_loop()        utils.execute_scope("loops",        true,  change) end
-function M.change_at_condition()   utils.execute_scope("conditions",   false, change) end
-function M.change_in_condition()   utils.execute_scope("conditions",   true,  change) end
-function M.change_at_parent()      utils.execute_parent(false,               change) end
-function M.change_in_parent()      utils.execute_parent(true,                change) end
+function M.change_at_function()
+  utils.execute_scope("functions", false, change)
+end
+function M.change_in_function()
+  utils.execute_scope("functions", true, change)
+end
+function M.change_at_declaration()
+  utils.execute_scope("declarations", false, change)
+end
+function M.change_in_declaration()
+  utils.execute_scope("declarations", true, change)
+end
+function M.change_at_loop()
+  utils.execute_scope("loops", false, change)
+end
+function M.change_in_loop()
+  utils.execute_scope("loops", true, change)
+end
+function M.change_at_condition()
+  utils.execute_scope("conditions", false, change)
+end
+function M.change_in_condition()
+  utils.execute_scope("conditions", true, change)
+end
+function M.change_at_parent()
+  utils.execute_parent(false, change)
+end
+function M.change_in_parent()
+  utils.execute_parent(true, change)
+end
 
 return M

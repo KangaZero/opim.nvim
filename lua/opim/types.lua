@@ -131,16 +131,6 @@
 ---@field delete_in_declaration string
 ---@field delete_in_loop string
 ---@field delete_in_condition string
----@field visual_at_parent string
----@field visual_at_function string
----@field visual_at_declaration string
----@field visual_at_loop string
----@field visual_at_condition string
----@field visual_in_parent string
----@field visual_in_function string
----@field visual_in_declaration string
----@field visual_in_loop string
----@field visual_in_condition string
 ---@field change_at_parent string
 ---@field change_at_function string
 ---@field change_at_declaration string
@@ -176,10 +166,23 @@
 ---@field expand_selection string expand the visual selection up to the next scope
 ---@field shrink_selection string shrink the visual selection down to the inner scope
 
+---@class Opim.NormalPendingVisualCommonKeys
+---@field visual_at_parent string
+---@field visual_at_function string
+---@field visual_at_declaration string
+---@field visual_at_loop string
+---@field visual_at_condition string
+---@field visual_in_parent string
+---@field visual_in_function string
+---@field visual_in_declaration string
+---@field visual_in_loop string
+---@field visual_in_condition string
+
 ---@class Opim.Keys
----@field normal Opim.NormalKeys
+---@field normal Opim.NormalKeys|Opim.NormalPendingVisualCommonKeys
 ---@field insert Opim.InsertKeys
----@field visual Opim.VisualKeys
+---@field visual Opim.VisualKeys|Opim.NormalPendingVisualCommonKeys
+---@field pending Opim.NormalKeys|Opim.NormalPendingVisualCommonKeys
 
 --- Partial user overrides for normal-mode keys.
 --- Pass `false` to disable a keymap entirely, a string to remap it, or omit to keep the default.
@@ -253,6 +256,11 @@
 ---@field normal? Opim.PartialNormalKeys
 ---@field insert? Opim.PartialInsertKeys
 ---@field visual? Opim.PartialVisualKeys
+---
+
+---@class Opim.YankRegister
+---@field enabled? boolean whether to perform yank operations at all
+---@field name? string the register to use for yank operations (e.g. '"', '+',
 
 --- The resolved, fully-populated plugin configuration (no optional fields).
 ---@class Opim.Config
@@ -261,6 +269,7 @@
 ---@field show_errors boolean emit an error on setup failures
 ---@field keys Opim.Keys mode-specific keybinding definitions
 ---@field debug boolean write debug output to opim.log in the cwd
+---@field yank_register? Opim.YankRegister write debug output to opim.log in the cwd
 
 --- User-supplied setup options. Every field is optional — omitted fields fall back to plugin defaults.
 ---@class Opim.Opts

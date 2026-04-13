@@ -103,9 +103,91 @@ M.defaults = {
   },
   show_warnings = true,
   show_errors = true,
+  yank_register = {
+    enabled = false,
+    register = "'",
+  },
   ---@type Opim.Keys
   keys = {
     ---@type Opim.NormalKeys
+    pending = {
+      -- yank
+      yank_at_parent = "yaP",
+      yank_at_function = "yaf",
+      yank_at_declaration = "yad",
+      -- yank_at_block       = "yab",
+      yank_at_loop = "yal",
+      yank_at_condition = "yac",
+      yank_in_parent = "yiP",
+      yank_in_function = "yif",
+      yank_in_declaration = "yid",
+      -- yank_in_block       = "yib",
+      yank_in_loop = "yil",
+      yank_in_condition = "yic",
+
+      -- delete
+      delete_at_parent = "daP",
+      delete_at_function = "daf",
+      delete_at_declaration = "dad",
+      -- delete_at_block       = "dab",
+      delete_at_loop = "dal",
+      delete_at_condition = "dac",
+      delete_in_parent = "diP",
+      delete_in_function = "dif",
+      delete_in_declaration = "did",
+      -- delete_in_block       = "dib",
+      delete_in_loop = "dil",
+      delete_in_condition = "dic",
+
+      -- visual select
+      visual_at_parent = "vaP",
+      visual_at_function = "vaf",
+      visual_at_declaration = "vad",
+      -- visual_at_block       = "vab",
+      visual_at_loop = "val",
+      visual_at_condition = "vac",
+      visual_in_parent = "viP",
+      visual_in_function = "vif",
+      visual_in_declaration = "vid",
+      -- visual_in_block       = "vib",
+      visual_in_loop = "vil",
+      visual_in_condition = "vic",
+
+      -- change
+      change_at_parent = "caP",
+      change_at_function = "caf",
+      change_at_declaration = "cad",
+      -- change_at_block       = "cab",
+      change_at_loop = "cal",
+      change_at_condition = "cac",
+      change_in_parent = "ciP",
+      change_in_function = "cif",
+      change_in_declaration = "cid",
+      -- change_in_block       = "cib",
+      change_in_loop = "cil",
+      change_in_condition = "cic",
+
+      --TODO: implement the below
+      -- navigate (all support [count] prefix)
+      next_function = "mf", -- [count]mf → nth next function
+      prev_function = "mF", -- [count]mF → nth prev function
+      next_class = "mc", -- [count]mc → nth next class
+      prev_class = "mC", -- [count]mC → nth prev class
+      next_declaration = "md", -- [count]md → nth next declaration
+      prev_declaration = "mD", -- [count]mD → nth prev declaration
+      next_block = "mb", -- [count]mb → nth next block
+      prev_block = "mB", -- [count]mB → nth prev block
+      next_loop = "ml", -- [count]ml → nth next loop
+      prev_loop = "mL", -- [count]mL → nth prev loop
+      next_condition = "mi", -- [count]mi → nth next condition
+      prev_condition = "mI", -- [count]mI → nth prev condition
+
+      -- node tree traversal (all support [count] prefix)
+      goto_parent = "gsp", -- go up to parent scope
+      goto_child = "gsc", -- go down to first child scope
+      next_sibling_scope = "gsn", -- [count]gsn → nth next sibling scope
+      prev_sibling_scope = "gsN", -- [count]gsN → nth prev sibling scope
+    },
     normal = {
       -- yank
       yank_at_parent = "yaP",
@@ -193,6 +275,19 @@ M.defaults = {
     visual = {
       expand_selection = "a", -- expand to next scope up
       shrink_selection = "i", -- shrink to next scope in
+      -- visual select
+      visual_at_parent = "vaP",
+      visual_at_function = "vaf",
+      visual_at_declaration = "vad",
+      -- visual_at_block       = "vab",
+      visual_at_loop = "val",
+      visual_at_condition = "vac",
+      visual_in_parent = "viP",
+      visual_in_function = "vif",
+      visual_in_declaration = "vid",
+      -- visual_in_block       = "vib",
+      visual_in_loop = "vil",
+      visual_in_condition = "vic",
     },
   },
   debug = true, -- write debug output to opim.log in the current directory

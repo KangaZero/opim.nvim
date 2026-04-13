@@ -9,6 +9,7 @@ function M.setup(config)
   local n = config.keys.normal
   local i = config.keys.insert
   local v = config.keys.visual
+  local o = config.keys.pending
 
   local yank_ops = require("opim.yank-operations")
   local delete_ops = require("opim.delete-operations")
@@ -33,6 +34,7 @@ function M.setup(config)
   -- Normal mode — operations share the same key name as their function name,
   -- so we iterate a list and index into each module directly.
 
+  --TODO: fix this up to be mapped to a single mode
   for _, name in ipairs({
     "yank_at_parent",
     "yank_at_function",
@@ -45,7 +47,7 @@ function M.setup(config)
     "yank_in_loop",
     "yank_in_condition",
   }) do
-    map("n", n[name], yank_ops[name], name:gsub("_", " "))
+    map({ "n", "o" }, n[name], yank_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   for _, name in ipairs({
@@ -60,7 +62,7 @@ function M.setup(config)
     "delete_in_loop",
     "delete_in_condition",
   }) do
-    map("n", n[name], delete_ops[name], name:gsub("_", " "))
+    map({ "n", "o" }, n[name], delete_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   for _, name in ipairs({
@@ -75,7 +77,7 @@ function M.setup(config)
     "visual_in_loop",
     "visual_in_condition",
   }) do
-    map("n", n[name], visual_ops[name], name:gsub("_", " "))
+    map({ "x" }, n[name], visual_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   for _, name in ipairs({
@@ -90,7 +92,7 @@ function M.setup(config)
     "change_in_loop",
     "change_in_condition",
   }) do
-    map({ "n", "v" }, n[name], change_ops[name], name:gsub("_", " "))
+    map({ "n", "o" }, n[name], change_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   -- navigate, traverse, insert, visual expand/shrink — wired once those modules exist
