@@ -8,7 +8,7 @@ local utils = require("opim.utils")
 local function select(node, _bufnr)
   local start_row, start_column, end_row, end_column = node:range()
   vim.api.nvim_win_set_cursor(0, { start_row + 1, start_column })
-  vim.cmd("normal! v")
+  -- vim.cmd("normal! v")
   vim.api.nvim_win_set_cursor(0, { end_row + 1, end_column - 1 })
   -- local count = end_row - start_row
   -- -- "v" enters visual line mode; extend by count lines if the node spans more than one

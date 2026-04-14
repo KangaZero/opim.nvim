@@ -199,11 +199,13 @@
 ---| "visual_in_loop"
 ---| "visual_in_condition"
 
+---@alias Opim.AllKeys Opim.YankKeys | Opim.DeleteKeys | Opim.ChangeKeys | Opim.NavigateKeys
+
 ---@class Opim.KeysOpts
 ---@field enabled boolean -- whether this keymap is enabled at all
 ---@field modes Opim.Modes | Opim.Modes[] --
 ---@field operator Opim.Operators | nil -- nil is for "visual" as it is not an operator
----@field keymap string -- NOTE: if 'operator' is nil, the whole keymap will be used, else the part after the operator (e.g. "y" in "yaf") will be used as the keymap
+---@field keymap string -- NOTE: if 'operator' is nil, that just means it could be "visual" or "navigation", just not nvim-defined "vim.v.operator"
 
 ---@alias Opim.Keys table<Opim.YankKeys | Opim.DeleteKeys | Opim.ChangeKeys | Opim.NavigateKeys, Opim.KeysOpts>
 
@@ -211,24 +213,27 @@
 --- Pass `false` to disable a keymap entirely, a string to remap it, or omit to keep the default.
 ---@class Opim.YankRegister
 ---@field enabled? boolean whether to perform yank operations at all
----@field name? string the register to use for yank operations (e.g. '"', '+',
+---@field register? string (Defaults to "+") The register to use for yank operations (e.g. '"', '+',
 
 --- The resolved, fully-populated plugin configuration (no optional fields).
 ---@class Opim.Config
 ---@field scopes Opim.Scopes TreeSitter node type names keyed by filetype
 ---@field show_warnings boolean emit a warning when keymap conflicts are detected
+---@field show_info boolean
 ---@field show_errors boolean emit an error on setup failures
----@field keys Opim.Keys mode-specific keybinding definitions
+---@field keys Opim.Keys
+---@field yank_register Opim.YankRegister write debug output to opim.log in the cwd
 ---@field debug boolean write debug output to opim.log in the cwd
----@field yank_register? Opim.YankRegister write debug output to opim.log in the cwd
 
 --- User-supplied setup options. Every field is optional — omitted fields fall back to plugin defaults.
+--- This class is almost the same as Opim.Config, except all fields are optional and the 'debug' field is not present
 ---@class Opim.Opts
 ---@field scopes? Opim.Scopes override or extend the per-filetype scope node types
 ---@field show_warnings? boolean
+---@field show_info? boolean
 ---@field show_errors? boolean
----@field keys? Opim.PartialKeys pass false for any key to disable it, a string to remap it
----@field debug? boolean
+---@field keys? Opim.Keys mode-specific keybinding definitions
+---@field yank_register? Opim.YankRegister write debug output to opim.log in the cwd
 
 --- A thin wrapper around a TreeSitter node that carries pre-extracted metadata.
 ---@class Opim.Node

@@ -101,11 +101,12 @@ M.defaults = {
       conditions = { "if_statement", "else_clause", "switch_statement" },
     },
   },
+  show_info = true,
   show_warnings = true,
   show_errors = true,
   yank_register = {
     enabled = false,
-    register = "'",
+    register = "+",
   },
   ---@type Opim.Keys
   keys = {
@@ -127,23 +128,25 @@ M.defaults = {
     delete_at_declaration = { enabled = true, modes = "o", operator = "d", keymap = "ad" },
     delete_at_loop = { enabled = true, modes = "o", operator = "d", keymap = "al" },
     delete_at_condition = { enabled = true, modes = "o", operator = "d", keymap = "ac" },
+
     delete_in_parent = { enabled = true, modes = "o", operator = "d", keymap = "iP" },
     delete_in_function = { enabled = true, modes = "o", operator = "d", keymap = "if" },
     delete_in_declaration = { enabled = true, modes = "o", operator = "d", keymap = "id" },
     delete_in_loop = { enabled = true, modes = "o", operator = "d", keymap = "il" },
     delete_in_condition = { enabled = true, modes = "o", operator = "d", keymap = "ic" },
     -- visual
-    visual_at_parent = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vaP" },
-    visual_at_function = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vaf" },
-    visual_at_declaration = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vad" },
-    visual_at_loop = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "val" },
-    visual_at_condition = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vac" },
+    -- INFO: visual is not an operator, so we set operator = nil
+    visual_at_parent = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "aP" },
+    visual_at_function = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "af" },
+    visual_at_declaration = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "ad" },
+    visual_at_loop = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "al" },
+    visual_at_condition = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "ac" },
 
-    visual_in_parent = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "viP" },
-    visual_in_function = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vif" },
-    visual_in_declaration = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vid" },
-    visual_in_loop = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vil" },
-    visual_in_condition = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "vic" },
+    visual_in_parent = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "iP" },
+    visual_in_function = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "if" },
+    visual_in_declaration = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "id" },
+    visual_in_loop = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "il" },
+    visual_in_condition = { enabled = true, modes = { "v", "x" }, operator = nil, keymap = "ic" },
 
     -- change
     change_at_parent = { enabled = true, modes = "o", operator = "c", keymap = "aP" },
@@ -151,6 +154,7 @@ M.defaults = {
     change_at_declaration = { enabled = true, modes = "o", operator = "c", keymap = "ad" },
     change_at_loop = { enabled = true, modes = "o", operator = "c", keymap = "al" },
     change_at_condition = { enabled = true, modes = "o", operator = "c", keymap = "ac" },
+
     change_in_parent = { enabled = true, modes = "o", operator = "c", keymap = "iP" },
     change_in_function = { enabled = true, modes = "o", operator = "c", keymap = "if" },
     change_in_declaration = { enabled = true, modes = "o", operator = "c", keymap = "id" },
@@ -184,6 +188,7 @@ M.defaults = {
     -- expand_selection = "a", -- expand to next scope up
     -- shrink_selection = "i", -- shrink to next scope in
   },
+  --- HACK: For development purposes, not exposed as an option for the user
   debug = true, -- write debug output to opim.log in the current directory
 }
 

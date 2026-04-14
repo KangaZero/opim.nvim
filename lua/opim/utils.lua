@@ -1,4 +1,4 @@
----@class Opim.Util
+---@class Opim.Utils
 local M = {}
 
 local config = require("opim.config")

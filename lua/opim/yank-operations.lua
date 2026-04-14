@@ -1,8 +1,11 @@
 ---@class Opim.YankOperations
 local M = {}
 
+---@type Opim.Utils
 local utils = require("opim.utils")
+---@type Opim.Config
 local config = require("opim.config")
+---@type Opim
 local opim = require("opim")
 
 --- Yank `node` into the default register (linewise) and update `[`/`]` marks.
@@ -20,18 +23,7 @@ local function yank(node, bufnr)
   if is_yank_register then
     vim.fn.setreg(tostring(opim.config.yank_register.register), text_to_yank)
   end
-  -- vim.api.nvim_buf_set_mark(bufnr, "[", start_row + 1, 0, {})
-  -- vim.api.nvim_buf_set_mark(bufnr, "]", end_row + 1, 0, {})
-  -- vim.api.nvim_exec_autocmds("TextYankPost", {
-  --   modeline = false,
-  --   data = {
-  --     operator = "y",
-  --     regname = '"',
-  --     regtype = "l",
-  --     visual = false,
-  --   },
-  -- })
-  vim.notify(("opim: yanked %d lines"):format(end_row - start_row + 1), vim.log.levels.INFO)
+  vim.notify(("Yanked %d lines"):format(end_row - start_row + 1), vim.log.levels.INFO, { title = "Opim" })
 end
 
 function M.yank_at_function()

@@ -16,7 +16,7 @@ local keymaps = require("opim.keymaps")
 M.is_setup = false
 M.is_error = false
 
----@param opts? Opim.Config
+---@param opts? Opim.Opts
 function M.setup(opts)
   if not utils.has_treesitter() then
     M.is_error = true
