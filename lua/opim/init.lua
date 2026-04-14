@@ -4,14 +4,19 @@
 ---@field config Opim.Config
 local M = {}
 
-local defaults = require("opim.config").defaults
+---@type Opim.ConfigModule
+local config = require("opim.config")
+---@type Opim.Utils
 local utils = require("opim.utils")
+---@type Opim.Log
 local log = require("opim.log")
+---@type Opim.Keymaps
+local keymaps = require("opim.keymaps")
 
 M.is_setup = false
 M.is_error = false
 
----@param opts? Opim.Opts
+---@param opts? Opim.Config
 function M.setup(opts)
   if not utils.has_treesitter() then
     M.is_error = true
@@ -22,11 +27,11 @@ function M.setup(opts)
     )
   end
   M.is_setup = true
-  M.config = vim.tbl_deep_extend("force", {}, defaults, opts or {}) --[[@as Opim.Config]]
+  M.config = vim.tbl_deep_extend("force", {}, config.defaults, opts or {}) --[[@as Opim.Config]]
   log.init(M.config.debug)
   log.debug("setup() called")
   log.debug("config: " .. vim.inspect(M.config))
-  require("opim.keymap").setup(M.config)
+  keymaps.map_keymaps(M.config)
 end
 
 return M

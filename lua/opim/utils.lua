@@ -7,6 +7,7 @@ local log = require("opim.log")
 --- Returns true if the current buffer's filetype has a configured scope entry.
 --- Checks the merged user config so user-added languages are included.
 ---@return boolean
+---TODO: remove this. not in use
 function M.is_valid_file_type()
   local ft = vim.bo.filetype
   local opim = require("opim")
@@ -198,55 +199,6 @@ function M.execute_scope(category_key, inner, action)
     action(body or scope_node, bufnr)
   else
     action(scope_node, bufnr)
-  end
-end
-
-function test()
-  local function prettify_sexpr(str)
-    local result = {}
-    local indent = 0
-    local i = 1
-
-    while i <= #str do
-      local ch = str:sub(i, i)
-      if ch == "(" then
-        table.insert(result, string.rep("  ", indent) .. "(")
-        indent = indent + 1
-      elseif ch == ")" then
-        indent = indent - 1
-        table.insert(result, string.rep("  ", indent) .. ")")
-      elseif ch == " " then
-        table.insert(result, "\n")
-      else
-        -- accumulate word
-        local word = ""
-        while i <= #str and str:sub(i, i) ~= " " and str:sub(i, i) ~= "(" and str:sub(i, i) ~= ")" do
-          word = word .. str:sub(i, i)
-          i = i + 1
-        end
-        table.insert(result, string.rep("  ", indent) .. word)
-        i = i - 1
-      end
-      i = i + 1
-    end
-
-    return table.concat(result, "\n")
-  end
-
-  --
-  -- -- dump to scratch buffer
-  -- vim.cmd("enew")
-  -- vim.bo.buftype = "nofile"
-  -- vim.bo.filetype = "scheme"  -- scheme syntax highlighting looks great on sexprs
-  -- vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(pretty, "\n"))
-  local tree = vim.treesitter.get_parser():parse(true)[1]
-  local root = tree:root()
-  local pretty = prettify_sexpr(root:sexpr())
-  -- print(root:sexpr())
-  local f = io.open("./tree.txt", "w")
-  if f then
-    f:write(pretty)
-    f:close()
   end
 end
 

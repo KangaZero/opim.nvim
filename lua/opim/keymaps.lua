@@ -1,20 +1,19 @@
 ---@class Opim.Keymap
 local M = {}
 
+---@type Opim.Log
 local log = require("opim.log")
+---@type Opim.Config
+local config = require("opim.config")
+local keys = config.keys
 
 --- Set up all keymaps from the resolved config.
 ---@param config Opim.Config
-function M.setup(config)
-  local n = config.keys.normal
-  local i = config.keys.insert
-  local v = config.keys.visual
-  local o = config.keys.pending
-
-  local yank_ops = require("opim.yank-operations")
-  local delete_ops = require("opim.delete-operations")
-  local visual_ops = require("opim.visual-operations")
-  local change_ops = require("opim.change-operations")
+function M.map_keymaps(config)
+  local yank_operator = require("opim.yank-operations")
+  local delete_operator = require("opim.delete-operations")
+  local visual_operator = require("opim.visual-operations")
+  local change_operator = require("opim.change-operations")
 
   local base_opts = { noremap = true, silent = true }
 
@@ -28,13 +27,17 @@ function M.setup(config)
       return
     end
     log.debug(("keymap: %s %q → %s"):format(mode, key, desc))
-    vim.keymap.set(mode, key, fn, vim.tbl_extend("force", base_opts, { desc = "opim: " .. desc }))
+    log.debug(("operator: %s"):format(vim.v.operator))
+    --SPECIAL: RMB THAT LUA INDEX STARTS AT 1
+    local first_letter_of_key = key:sub(1, 1)
+    local non_visual_operator_keys = { "y", "d", "c" }
+
+    vim.keymap.set(mode, key, fn, vim.tbl_extend("force", base_opts, { nowait = true, desc = "Opim: " .. desc }))
   end
 
   -- Normal mode — operations share the same key name as their function name,
   -- so we iterate a list and index into each module directly.
 
-  --TODO: fix this up to be mapped to a single mode
   for _, name in ipairs({
     "yank_at_parent",
     "yank_at_function",
@@ -47,7 +50,7 @@ function M.setup(config)
     "yank_in_loop",
     "yank_in_condition",
   }) do
-    map({ "n", "o" }, n[name], yank_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
+    map({ "n" }, n[name], yank_operator[name], name:sub(1, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   for _, name in ipairs({
@@ -62,7 +65,7 @@ function M.setup(config)
     "delete_in_loop",
     "delete_in_condition",
   }) do
-    map({ "n", "o" }, n[name], delete_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
+    map({ "n" }, n[name], delete_operator[name], name:sub(1, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   for _, name in ipairs({
@@ -77,7 +80,7 @@ function M.setup(config)
     "visual_in_loop",
     "visual_in_condition",
   }) do
-    map({ "x" }, n[name], visual_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
+    map({ "x", "v" }, n[name], visual_operator[name], name:sub(1, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   for _, name in ipairs({
@@ -92,7 +95,7 @@ function M.setup(config)
     "change_in_loop",
     "change_in_condition",
   }) do
-    map({ "n", "o" }, n[name], change_ops[name], name:sub(0, 1):upper() .. name:sub(2):gsub("_", " "))
+    map({ "n" }, n[name], change_operator[name], name:sub(1, 1):upper() .. name:sub(2):gsub("_", " "))
   end
 
   -- navigate, traverse, insert, visual expand/shrink — wired once those modules exist

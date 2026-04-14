@@ -2,6 +2,23 @@
 
 --# selene: allow(unused_variable)
 
+---INFO: visual "v" is not an operator
+---
+---@alias Opim.Operators
+---| 'y'
+---| 'c'
+---| 'd'
+
+---INFO: more modes exist but these are the only ones relevant for keymap configuration
+---see :h modes
+---
+---@alias Opim.Modes
+---| 'n'
+---| 'i'
+---| 'v'
+---| 'x'
+---| 'o'
+
 ---@alias Opim.FunctionNodeType
 ---| "function_definition"   -- lua, python, c, cpp
 ---| "function_declaration"  -- javascript, typescript, go
@@ -110,154 +127,88 @@
 ---@alias Opim.Scopes table<LanugageFileType, Opim.ScopeCategory>
 
 --- Normal-mode keybinding strings for every scope operation.
----@class Opim.NormalKeys
----@field yank_at_parent string
----@field yank_at_function string
----@field yank_at_declaration string
----@field yank_at_loop string
----@field yank_at_condition string
----@field yank_in_parent string
----@field yank_in_function string
----@field yank_in_declaration string
----@field yank_in_loop string
----@field yank_in_condition string
----@field delete_at_parent string
----@field delete_at_function string
----@field delete_at_declaration string
----@field delete_at_loop string
----@field delete_at_condition string
----@field delete_in_parent string
----@field delete_in_function string
----@field delete_in_declaration string
----@field delete_in_loop string
----@field delete_in_condition string
----@field change_at_parent string
----@field change_at_function string
----@field change_at_declaration string
----@field change_at_loop string
----@field change_at_condition string
----@field change_in_parent string
----@field change_in_function string
----@field change_in_declaration string
----@field change_in_loop string
----@field change_in_condition string
----@field next_function string go to the [count]th next function
----@field prev_function string go to the [count]th previous function
----@field next_class string go to the [count]th next class
----@field prev_class string go to the [count]th previous class
----@field next_declaration string go to the [count]th next declaration
----@field prev_declaration string go to the [count]th previous declaration
----@field next_block string go to the [count]th next block
----@field prev_block string go to the [count]th previous block
----@field next_loop string go to the [count]th next loop
----@field prev_loop string go to the [count]th previous loop
----@field next_condition string go to the [count]th next condition
----@field prev_condition string go to the [count]th previous condition
----@field goto_parent string go up one level to the enclosing scope
----@field goto_child string go down to the first child scope
----@field next_sibling_scope string move to the [count]th next sibling scope
----@field prev_sibling_scope string move to the [count]th previous sibling scope
+---@alias Opim.YankKeys
+---| "yank_at_parent"
+---| "yank_at_function"
+---| "yank_at_declaration"
+---| "yank_at_loop"
+---| "yank_at_condition"
+---| "yank_in_parent"
+---| "yank_in_function"
+---| "yank_in_declaration"
+---| "yank_in_loop"
+---| "yank_in_condition"
 
----@class Opim.InsertKeys
----@field jump_scope_start string jump to the start of the enclosing scope
----@field jump_scope_end string jump to the end of the enclosing scope
+---@alias Opim.DeleteKeys
+---| "delete_at_parent"
+---| "delete_at_function"
+---| "delete_at_declaration"
+---| "delete_at_loop"
+---| "delete_at_condition"
+---| "delete_in_parent"
+---| "delete_in_function"
+---| "delete_in_declaration"
+---| "delete_in_loop"
+---| "delete_in_condition"
 
----@class Opim.VisualKeys
----@field expand_selection string expand the visual selection up to the next scope
----@field shrink_selection string shrink the visual selection down to the inner scope
+---@alias Opim.ChangeKeys
+---| "change_at_parent"
+---| "change_at_function"
+---| "change_at_declaration"
+---| "change_at_loop"
+---| "change_at_condition"
+---| "change_in_parent"
+---| "change_in_function"
+---| "change_in_declaration"
+---| "change_in_loop"
+---| "change_in_condition"
 
----@class Opim.NormalPendingVisualCommonKeys
----@field visual_at_parent string
----@field visual_at_function string
----@field visual_at_declaration string
----@field visual_at_loop string
----@field visual_at_condition string
----@field visual_in_parent string
----@field visual_in_function string
----@field visual_in_declaration string
----@field visual_in_loop string
----@field visual_in_condition string
+---@alias Opim.NavigateKeys
+---| "next_function"
+---| "prev_function"
+---| "next_class"
+---| "prev_class"
+---| "next_declaration"
+---| "prev_declaration"
+---| "next_block"
+---| "prev_block"
+---| "next_loop"
+---| "prev_loop"
+---| "next_condition"
+---| "prev_condition"
+---| "goto_parent"
+---| "goto_child"
+---| "next_sibling_scope"
+---| "prev_sibling_scope"
 
----@class Opim.Keys
----@field normal Opim.NormalKeys|Opim.NormalPendingVisualCommonKeys
----@field insert Opim.InsertKeys
----@field visual Opim.VisualKeys|Opim.NormalPendingVisualCommonKeys
----@field pending Opim.NormalKeys|Opim.NormalPendingVisualCommonKeys
+---@alias Opim.InsertKeys
+---| "jump_scope_start"
+---| "jump_scope_end"
+
+---@alias Opim.VisualKeys
+---| "expand_selection"
+---| "shrink_selection"
+---| "visual_at_parent"
+---| "visual_at_function"
+---| "visual_at_declaration"
+---| "visual_at_loop"
+---| "visual_at_condition"
+---| "visual_in_parent"
+---| "visual_in_function"
+---| "visual_in_declaration"
+---| "visual_in_loop"
+---| "visual_in_condition"
+
+---@class Opim.KeysOpts
+---@field enabled boolean -- whether this keymap is enabled at all
+---@field modes Opim.Modes | Opim.Modes[] --
+---@field operator Opim.Operators | nil -- nil is for "visual" as it is not an operator
+---@field keymap string -- NOTE: if 'operator' is nil, the whole keymap will be used, else the part after the operator (e.g. "y" in "yaf") will be used as the keymap
+
+---@alias Opim.Keys table<Opim.YankKeys | Opim.DeleteKeys | Opim.ChangeKeys | Opim.NavigateKeys, Opim.KeysOpts>
 
 --- Partial user overrides for normal-mode keys.
 --- Pass `false` to disable a keymap entirely, a string to remap it, or omit to keep the default.
----@class Opim.PartialNormalKeys
----@field yank_at_parent? string|false
----@field yank_at_function? string|false
----@field yank_at_declaration? string|false
----@field yank_at_loop? string|false
----@field yank_at_condition? string|false
----@field yank_in_parent? string|false
----@field yank_in_function? string|false
----@field yank_in_declaration? string|false
----@field yank_in_loop? string|false
----@field yank_in_condition? string|false
----@field delete_at_parent? string|false
----@field delete_at_function? string|false
----@field delete_at_declaration? string|false
----@field delete_at_loop? string|false
----@field delete_at_condition? string|false
----@field delete_in_parent? string|false
----@field delete_in_function? string|false
----@field delete_in_declaration? string|false
----@field delete_in_loop? string|false
----@field delete_in_condition? string|false
----@field visual_at_parent? string|false
----@field visual_at_function? string|false
----@field visual_at_declaration? string|false
----@field visual_at_loop? string|false
----@field visual_at_condition? string|false
----@field visual_in_parent? string|false
----@field visual_in_function? string|false
----@field visual_in_declaration? string|false
----@field visual_in_loop? string|false
----@field visual_in_condition? string|false
----@field change_at_parent? string|false
----@field change_at_function? string|false
----@field change_at_declaration? string|false
----@field change_at_loop? string|false
----@field change_at_condition? string|false
----@field change_in_parent? string|false
----@field change_in_function? string|false
----@field change_in_declaration? string|false
----@field change_in_loop? string|false
----@field change_in_condition? string|false
----@field next_function? string|false
----@field prev_function? string|false
----@field next_class? string|false
----@field prev_class? string|false
----@field next_declaration? string|false
----@field prev_declaration? string|false
----@field next_block? string|false
----@field prev_block? string|false
----@field next_loop? string|false
----@field prev_loop? string|false
----@field next_condition? string|false
----@field prev_condition? string|false
----@field goto_parent? string|false
----@field goto_child? string|false
----@field next_sibling_scope? string|false
----@field prev_sibling_scope? string|false
-
----@class Opim.PartialInsertKeys
----@field jump_scope_start? string|false
----@field jump_scope_end? string|false
-
----@class Opim.PartialVisualKeys
----@field expand_selection? string|false
----@field shrink_selection? string|false
-
----@class Opim.PartialKeys
----@field normal? Opim.PartialNormalKeys
----@field insert? Opim.PartialInsertKeys
----@field visual? Opim.PartialVisualKeys
----
-
 ---@class Opim.YankRegister
 ---@field enabled? boolean whether to perform yank operations at all
 ---@field name? string the register to use for yank operations (e.g. '"', '+',
