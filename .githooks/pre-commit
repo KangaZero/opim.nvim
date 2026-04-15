@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "opim.nvim: running test suite before commit..."
-make test
-echo "opim.nvim: all tests passed."
+echo "Currently no test added, TOOD add when possible!"
+# make test
+# echo "opim.nvim: all tests passed."

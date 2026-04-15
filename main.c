@@ -1,0 +1,76 @@
+#include "utils/debug.c"
+#include "utils/keycode_map.c"
+#include "utils/move.c"
+
+#include "main.h"
+#include "utils/keycode_map.h"
+#include "utils/mouse.h"
+
+#include <ApplicationServices/ApplicationServices.h>
+#include <stdlib.h>
+#include <string.h>
+
+CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
+                    void *refcon) {
+  if (type == kCGEventKeyDown) {
+    CGKeyCode keycode =
+        (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+    debug("keycode: %hu", keycode);
+
+    static char motion_count_as_string[MAX_MOTION_COUNT_LEN] = "";
+    Axis axis = {0, 0};
+    double range = 0;
+
+    if (strlen(motion_count_as_string) < MAX_MOTION_COUNT_LEN &&
+        keycode_to_digit_as_char(&keycode)) {
+      const char *keycode_char = keycode_to_digit_as_char(&keycode);
+      debug("key: digit, action: strcat to %s", motion_count_as_string);
+      strcat(motion_count_as_string, keycode_char);
+      return event;
+    }
+
+    switch (keycode) {
+    case VIM_h:
+      axis = (Axis){1, 0};
+      range = -10;
+      break;
+    case VIM_j:
+      axis = (Axis){0, 1};
+      range = 10;
+      break;
+    case VIM_k:
+      axis = (Axis){0, 1};
+      range = -10;
+      break;
+    case VIM_l:
+      axis = (Axis){1, 0};
+      range = 10;
+      break;
+    default:
+      return event;
+    }
+
+    double motion_count = (strlen(motion_count_as_string) > 0)
+                              ? strtod(motion_count_as_string, NULL)
+                              : 1.0;
+    move_mouse(proxy, type, event, refcon, &axis, range * motion_count);
+    motion_count_as_string[0] = '\0';
+    return event;
+  }
+  return event;
+}
+
+int main() {
+  CGEventMask mask = CGEventMaskBit(kCGEventKeyDown);
+
+  CFMachPortRef tap =
+      CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
+                       kCGEventTapOptionDefault, mask, callback, NULL);
+
+  CFRunLoopSourceRef source = CFMachPortCreateRunLoopSource(NULL, tap, 0);
+  CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopCommonModes);
+  CGEventTapEnable(tap, true);
+  CFRunLoopRun();
+
+  return 0;
+}
