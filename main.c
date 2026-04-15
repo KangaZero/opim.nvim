@@ -4,7 +4,7 @@
 
 #include "main.h"
 #include "utils/keycode_map.h"
-#include "utils/mouse.h"
+// #include "utils/mouse.h"
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <stdlib.h>
@@ -18,7 +18,7 @@ CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
     debug("keycode: %hu", keycode);
 
     static char motion_count_as_string[MAX_MOTION_COUNT_LEN] = "";
-    Axis axis = {0, 0};
+    CGPoint axis = {0, 0};
     double range = 0;
 
     if (strlen(motion_count_as_string) < MAX_MOTION_COUNT_LEN &&
@@ -31,19 +31,19 @@ CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
 
     switch (keycode) {
     case VIM_h:
-      axis = (Axis){1, 0};
+      axis = (CGPoint){1, 0};
       range = -10;
       break;
     case VIM_j:
-      axis = (Axis){0, 1};
+      axis = (CGPoint){0, 1};
       range = 10;
       break;
     case VIM_k:
-      axis = (Axis){0, 1};
+      axis = (CGPoint){0, 1};
       range = -10;
       break;
     case VIM_l:
-      axis = (Axis){1, 0};
+      axis = (CGPoint){1, 0};
       range = 10;
       break;
     default:

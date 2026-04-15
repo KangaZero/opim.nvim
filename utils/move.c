@@ -1,8 +1,9 @@
-#include "mouse.h"
+#include "screen.c"
 #include <ApplicationServices/ApplicationServices.h>
+#include <stdmath.h>
 
 CGEventRef move_mouse(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
-                      void *refcon, Axis *axis, double range) {
+                      void *refcon, const CGPoint *axis, const double range) {
   CGEventRef mouse = CGEventCreate(NULL);
   CGPoint pos = CGEventGetLocation(mouse);
   CFRelease(mouse);
