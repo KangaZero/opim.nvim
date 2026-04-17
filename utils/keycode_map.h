@@ -1,4 +1,8 @@
 #pragma once
+#include <ApplicationServices/ApplicationServices.h>
+
+const char *keycode_to_digit_as_char(CGKeyCode *keycode);
+
 // Core basic vim motions
 #define VIM_h 4
 #define VIM_j 38

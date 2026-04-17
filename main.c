@@ -1,10 +1,7 @@
-#include "utils/debug.c"
-#include "utils/keycode_map.c"
-#include "utils/move.c"
-
 #include "main.h"
+#include "utils/debug.h"
 #include "utils/keycode_map.h"
-// #include "utils/mouse.h"
+#include "utils/move.h"
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <stdlib.h>
@@ -12,6 +9,7 @@
 
 CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
                     void *refcon) {
+  debug("event triggered: %d", type);
   if (type == kCGEventKeyDown) {
     CGKeyCode keycode =
         (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
@@ -61,15 +59,29 @@ CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
 }
 
 int main() {
-  CGEventMask mask = CGEventMaskBit(kCGEventKeyDown);
 
-  CFMachPortRef tap =
-      CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
-                       kCGEventTapOptionDefault, mask, callback, NULL);
+  CGEventMask keydown_mask = CGEventMaskBit(kCGEventKeyDown);
+  CGEventMask mouse_moved_mask = CGEventMaskBit(kCGEventMouseMoved);
 
-  CFRunLoopSourceRef source = CFMachPortCreateRunLoopSource(NULL, tap, 0);
-  CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopCommonModes);
-  CGEventTapEnable(tap, true);
+  CFMachPortRef keydown_tap = CGEventTapCreate(
+      kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
+      keydown_mask, callback, NULL); // Event type : 10
+  CFMachPortRef mouse_moved_tap = CGEventTapCreate(
+      kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
+      mouse_moved_mask, callback, NULL); // Event type : 5
+
+  CFRunLoopSourceRef keydown_event_loop_source =
+      CFMachPortCreateRunLoopSource(NULL, keydown_tap, 0);
+  CFRunLoopSourceRef mouse_moved_event_loop_source =
+      CFMachPortCreateRunLoopSource(NULL, mouse_moved_tap, 0);
+
+  CFRunLoopAddSource(CFRunLoopGetCurrent(), keydown_event_loop_source,
+                     kCFRunLoopCommonModes);
+  CFRunLoopAddSource(CFRunLoopGetCurrent(), mouse_moved_event_loop_source,
+                     kCFRunLoopCommonModes);
+  CGEventTapEnable(keydown_tap, true);
+  CGEventTapEnable(mouse_moved_tap, true);
+
   CFRunLoopRun();
 
   return 0;

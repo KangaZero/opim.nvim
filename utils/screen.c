@@ -1,4 +1,4 @@
-#include "debug.c"
+#include "debug.h"
 #include <ApplicationServices/ApplicationServices.h>
 
 #define MAX_DISPLAYS 8
@@ -18,6 +18,9 @@ CGDirectDisplayID get_current_display_id() {
 }
 
 CGSize get_current_display_bounds() {
+  debug("get_current_display_id: %u", get_current_display_id());
   CGRect bounds = CGDisplayBounds(get_current_display_id());
   return bounds.size;
 }
+
+// bool is_current_displa

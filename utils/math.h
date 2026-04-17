@@ -1,4 +1,4 @@
-
+#pragma once
 // Source - https://stackoverflow.com/a/3437484
 // Posted by David Titarenco, modified by community. See post 'Timeline' for
 // change history Retrieved 2026-04-15, License - CC BY-SA 4.0
