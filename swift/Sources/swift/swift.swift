@@ -9,7 +9,7 @@ class NeoMouseState: ObservableObject {
     @Published var gridInset: CGFloat = 10
     @Published var gridDivisions: Int = 6
     @Published var innerGridDivisions: Int = 3
-    @Published var findModeCharacters: String = ""
+    @Published var findModeCharacters: [String] = "abcdefghijklmnopqrstuvwxyz".map { String($0) }
 }
 
 @main
@@ -28,6 +28,8 @@ struct NeoMouse: App {
                 case 3:  // f key
                     guard appState.isNeomouseMode else { break }
                     appState.isFindMode.toggle()
+                    ToastManager.shared.show(
+                        "Find Mode \(appState.isFindMode ? "On" : "Off")")
                 default: break
                 }
                 guard event.modifierFlags.contains(.command) else { return }
