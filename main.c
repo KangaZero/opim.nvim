@@ -1,6 +1,7 @@
 #include "main.h"
 #include "utils/debug.h"
 #include "utils/keycode_map.h"
+#include "utils/mouse.h"
 #include "utils/move.h"
 
 #include <ApplicationServices/ApplicationServices.h>
@@ -27,6 +28,14 @@ CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
       return event;
     }
 
+    // #ifdef DEBUG
+    switch (keycode) {
+    case VIM_c:
+      get_current_mouse_position();
+      break;
+    }
+    // #endif
+
     switch (keycode) {
     case VIM_h:
       axis = (CGPoint){1, 0};
@@ -47,7 +56,6 @@ CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event,
     default:
       return event;
     }
-
     double motion_count = (strlen(motion_count_as_string) > 0)
                               ? strtod(motion_count_as_string, NULL)
                               : 1.0;

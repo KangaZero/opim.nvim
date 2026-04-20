@@ -9,6 +9,8 @@ const char *keycode_to_digit_as_char(CGKeyCode *keycode);
 #define VIM_k 40
 #define VIM_l 37
 
+#define VIM_c 8
+
 #define VIM_NUMBER_0 29
 #define VIM_NUMBER_1 18
 #define VIM_NUMBER_2 19

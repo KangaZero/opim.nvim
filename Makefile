@@ -2,7 +2,7 @@ CC      := clang
 CFLAGS  := -Wall -Wextra -std=c11 -I.
 FFLAGS  := -framework ApplicationServices
 TARGET  := neowarpd
-SRCS    := main.c utils/debug.c utils/screen.c utils/move.c utils/keycode_map.c
+SRCS    := main.c utils/debug.c utils/screen.c utils/move.c utils/keycode_map.c utils/mouse.c
 OBJS    := $(SRCS:.c=.o)
 
 .PHONY: all debug clean
