@@ -2,19 +2,28 @@ import AppKit
 import SwiftUI
 
 @main
-struct MyApp: App {
+struct NeoMouse: App {
     private static var keyMonitor: Any?
 
     init() {
 
-        MyApp.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+        NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
-                print("Key code without modifierFlags: \(event.keyCode)")
+                debug("Key code without modifierFlags: \(event.keyCode)")
                 guard event.modifierFlags.contains(.command) else { return }
-                print("Key code with modifierFlags: \(event.keyCode)")
+                debug("Key code with modifierFlags: \(event.keyCode)")
                 switch event.keyCode {
                 case 34: sendNotification()  // ⌘I
                 case 5: GridOverlay.shared.toggle()  // ⌘G
+                default: break
+                }
+            }
+        }
+        NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { event in
+            MainActor.assumeIsolated {
+                debug("Mouse x: \(event.absoluteX)")
+                debug("Mouse y: \(event.absoluteY)")
+                switch event {
                 default: break
                 }
             }
