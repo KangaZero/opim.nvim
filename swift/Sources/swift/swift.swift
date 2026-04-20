@@ -3,8 +3,13 @@ import SwiftUI
 
 class NeoMouseState: ObservableObject {
     @Published var isNeomouseMode = false
+    @Published var isFindMode = false
     @Published var mouseX: CGFloat = 0
     @Published var mouseY: CGFloat = 0
+    @Published var gridInset: CGFloat = 10
+    @Published var gridDivisions: Int = 6
+    @Published var innerGridDivisions: Int = 3
+    @Published var findModeCharacters: String = ""
 }
 
 @main
@@ -17,17 +22,24 @@ struct NeoMouse: App {
         let appState = appState
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
+                //TODO: create a map to their respective keys, else it just looks like magic numbers
                 debug("Key code without modifierFlags: \(event.keyCode)")
+                switch event.keyCode {
+                case 3:  // f key
+                    guard appState.isNeomouseMode else { break }
+                    appState.isFindMode.toggle()
+                default: break
+                }
                 guard event.modifierFlags.contains(.command) else { return }
                 debug("Key code with modifierFlags: \(event.keyCode)")
                 switch event.keyCode {
-                case 34:
+                case 34:  // i key
                     appState.isNeomouseMode.toggle()
                     ToastManager.shared.show(
                         "NeoMouse Mode \(appState.isNeomouseMode ? "On" : "Off")")
-                case 5:
+                case 5:  // g key
                     guard appState.isNeomouseMode else { break }
-                    GridOverlay.shared.toggle()
+                    GridOverlay.shared.toggle(state: appState)
                 default: break
                 }
             }
@@ -113,14 +125,16 @@ final class GridOverlay {
     static let shared = GridOverlay()
     private var window: NSWindow?
     private var isVisible = false
+    private weak var appState: NeoMouseState?
 
-    func toggle() {
+    func toggle(state: NeoMouseState) {
+        appState = state
         isVisible ? hide() : show()
         isVisible.toggle()
     }
 
     private func show() {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.main, let appState else { return }
         if window == nil {
             let win = NSWindow(
                 contentRect: screen.frame,
@@ -133,7 +147,7 @@ final class GridOverlay {
             win.level = .screenSaver
             win.ignoresMouseEvents = true
             win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            win.contentView = NSHostingView(rootView: GridOverlayView())
+            win.contentView = NSHostingView(rootView: GridOverlayView(state: appState))
             window = win
         }
         window?.setFrame(screen.frame, display: true)
@@ -148,29 +162,52 @@ final class GridOverlay {
 // MARK: - Grid View
 
 struct GridOverlayView: View {
-    private let divisions = 10
+    @ObservedObject var state: NeoMouseState
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 Color.black.opacity(0.15)
                 Canvas { ctx, _ in
-                    let cellW = geo.size.width / CGFloat(divisions)
-                    let cellH = geo.size.height / CGFloat(divisions)
-                    var path = Path()
-                    for i in 0...divisions {
-                        let x = cellW * CGFloat(i)
-                        path.move(to: CGPoint(x: x, y: 0))
-                        path.addLine(to: CGPoint(x: x, y: geo.size.height))
-                        let y = cellH * CGFloat(i)
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: geo.size.width, y: y))
-                    }
-                    ctx.stroke(path, with: .color(.white.opacity(0.6)), lineWidth: 1)
+                    let inset = state.gridInset
+                    let startX = inset
+                    let endX = geo.size.width - inset
+                    let startY = inset
+                    let endY = geo.size.height - inset
+                    let cellW = (endX - startX) / CGFloat(state.gridDivisions)
+                    let cellH = (endY - startY) / CGFloat(state.gridDivisions)
 
-                    for col in 0...divisions {
-                        for row in 0...divisions {
-                            let x: CGFloat = cellW * CGFloat(col)
-                            let y: CGFloat = cellH * CGFloat(row)
+                    let innerCellW = cellW / CGFloat(state.innerGridDivisions)
+                    let innerCellH = cellH / CGFloat(state.innerGridDivisions)
+                    let totalInner = state.gridDivisions * state.innerGridDivisions
+
+                    var innerPath = Path()
+                    for i in 1..<totalInner {
+                        guard i % state.innerGridDivisions != 0 else { continue }
+                        let x = startX + innerCellW * CGFloat(i)
+                        innerPath.move(to: CGPoint(x: x, y: startY))
+                        innerPath.addLine(to: CGPoint(x: x, y: endY))
+                        let y = startY + innerCellH * CGFloat(i)
+                        innerPath.move(to: CGPoint(x: startX, y: y))
+                        innerPath.addLine(to: CGPoint(x: endX, y: y))
+                    }
+                    ctx.stroke(innerPath, with: .color(.white.opacity(0.3)), lineWidth: 0.5)
+
+                    var outerPath = Path()
+                    for i in 0...state.gridDivisions {
+                        let x = startX + cellW * CGFloat(i)
+                        outerPath.move(to: CGPoint(x: x, y: startY))
+                        outerPath.addLine(to: CGPoint(x: x, y: endY))
+                        let y = startY + cellH * CGFloat(i)
+                        outerPath.move(to: CGPoint(x: startX, y: y))
+                        outerPath.addLine(to: CGPoint(x: endX, y: y))
+                    }
+                    ctx.stroke(outerPath, with: .color(.white.opacity(0.6)), lineWidth: 1)
+
+                    // INFO: the -1 is to make sure it does not go beyond the gridInset
+                    for col in 0...state.gridDivisions - 1 {
+                        for row in 0...state.gridDivisions - 1 {
+                            let x = startX + cellW * CGFloat(col)
+                            let y = startY + cellH * CGFloat(row)
                             let label = Text("\(Int(x)),\(Int(y))")
                                 .font(.system(size: 8))
                                 .foregroundColor(.white)
