@@ -7,9 +7,13 @@ class NeoMouseState: ObservableObject {
     @Published var mouseX: CGFloat = 0
     @Published var mouseY: CGFloat = 0
     @Published var gridInset: CGFloat = 10
-    @Published var gridDivisions: Int = 6
+    @Published var gridDivisions: Int = 5
     @Published var innerGridDivisions: Int = 3
-    @Published var findModeCharacters: [String] = "abcdefghijklmnopqrstuvwxyz".map { String($0) }
+    @Published var findModeGridDivisionCharacters: [String] = "abcdefghijklmnopqrstuvwxyz".map {
+        String($0)
+    }
+    @Published var findModeInnerGridDivisionCharacters: [String] = "abcdefghijklmnopqrstuvwxyz".map
+    { String($0) }
 }
 
 @main
@@ -19,13 +23,17 @@ struct NeoMouse: App {
     @StateObject private var appState = NeoMouseState()
 
     init() {
+        //TODO add checks to make sure no unintended behavior of out of bounds access happens
+        // eg.. gridDivisions * gridDivisions <=findModeGridDivisionCharacters.count, and similar for
+        // innerGridDivisions
+
         let appState = appState
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
                 //TODO: create a map to their respective keys, else it just looks like magic numbers
                 debug("Key code without modifierFlags: \(event.keyCode)")
                 switch event.keyCode {
-                case 3:  // f key
+                case keyCodeToCharMap["f"]:
                     guard appState.isNeomouseMode else { break }
                     appState.isFindMode.toggle()
                     ToastManager.shared.show(
@@ -35,11 +43,11 @@ struct NeoMouse: App {
                 guard event.modifierFlags.contains(.command) else { return }
                 debug("Key code with modifierFlags: \(event.keyCode)")
                 switch event.keyCode {
-                case 34:  // i key
+                case keyCodeToCharMap["e"]:
                     appState.isNeomouseMode.toggle()
                     ToastManager.shared.show(
                         "NeoMouse Mode \(appState.isNeomouseMode ? "On" : "Off")")
-                case 5:  // g key
+                case keyCodeToCharMap["g"]:
                     guard appState.isNeomouseMode else { break }
                     GridOverlay.shared.toggle(state: appState)
                 default: break
@@ -175,20 +183,21 @@ struct GridOverlayView: View {
                     let endX = geo.size.width - inset
                     let startY = inset
                     let endY = geo.size.height - inset
-                    let cellW = (endX - startX) / CGFloat(state.gridDivisions)
-                    let cellH = (endY - startY) / CGFloat(state.gridDivisions)
+                    let cellWidth = (endX - startX) / CGFloat(state.gridDivisions)
+                    let cellHeight = (endY - startY) / CGFloat(state.gridDivisions)
+                    // var findCharGridDivisionTextIndex: Int = 1
 
-                    let innerCellW = cellW / CGFloat(state.innerGridDivisions)
-                    let innerCellH = cellH / CGFloat(state.innerGridDivisions)
+                    let innerCellWidth = cellWidth / CGFloat(state.innerGridDivisions)
+                    let innerCellHeight = cellHeight / CGFloat(state.innerGridDivisions)
                     let totalInner = state.gridDivisions * state.innerGridDivisions
 
                     var innerPath = Path()
                     for i in 1..<totalInner {
                         guard i % state.innerGridDivisions != 0 else { continue }
-                        let x = startX + innerCellW * CGFloat(i)
+                        let x = startX + innerCellWidth * CGFloat(i)
                         innerPath.move(to: CGPoint(x: x, y: startY))
                         innerPath.addLine(to: CGPoint(x: x, y: endY))
-                        let y = startY + innerCellH * CGFloat(i)
+                        let y = startY + innerCellHeight * CGFloat(i)
                         innerPath.move(to: CGPoint(x: startX, y: y))
                         innerPath.addLine(to: CGPoint(x: endX, y: y))
                     }
@@ -196,10 +205,10 @@ struct GridOverlayView: View {
 
                     var outerPath = Path()
                     for i in 0...state.gridDivisions {
-                        let x = startX + cellW * CGFloat(i)
+                        let x = startX + cellWidth * CGFloat(i)
                         outerPath.move(to: CGPoint(x: x, y: startY))
                         outerPath.addLine(to: CGPoint(x: x, y: endY))
-                        let y = startY + cellH * CGFloat(i)
+                        let y = startY + cellHeight * CGFloat(i)
                         outerPath.move(to: CGPoint(x: startX, y: y))
                         outerPath.addLine(to: CGPoint(x: endX, y: y))
                     }
@@ -208,12 +217,24 @@ struct GridOverlayView: View {
                     // INFO: the -1 is to make sure it does not go beyond the gridInset
                     for col in 0...state.gridDivisions - 1 {
                         for row in 0...state.gridDivisions - 1 {
-                            let x = startX + cellW * CGFloat(col)
-                            let y = startY + cellH * CGFloat(row)
+                            let x = startX + cellWidth * CGFloat(col)
+                            let y = startY + cellHeight * CGFloat(row)
+                            let middleX = x + (cellWidth / 2)
+                            let middleY = y + (cellHeight / 2)
                             let label = Text("\(Int(x)),\(Int(y))")
                                 .font(.system(size: 8))
                                 .foregroundColor(.white)
+
+                            let index = row * state.gridDivisions + col
+                            let findCharGridDivisionText = Text(
+                                "\(state.findModeGridDivisionCharacters[index])"
+                            )
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
                             ctx.draw(label, at: CGPoint(x: x + 2, y: y + 2), anchor: .topLeading)
+                            ctx.draw(
+                                findCharGridDivisionText, at: CGPoint(x: middleX, y: middleY),
+                                anchor: .topLeading)
                         }
                     }
                 }
