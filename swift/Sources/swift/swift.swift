@@ -26,6 +26,7 @@ class NeoMouseState: ObservableObject {
         pendingGridDivisionIndex: nil,
         pendingInnerGridDivisionIndex: nil
     )
+    @Published var isAlwaysShowInnerGridCharacters = true
 }
 
 @main
@@ -104,6 +105,8 @@ struct NeoMouse: App {
                             }
                             appState.pendingOperation.pendingGridDivisionIndex =
                                 gridDivisionCharactersIndex
+                            GridOverlay.shared.passAppState(state: appState)
+                            GridOverlay.shared.highlightCurrentGridDivision()
                             // Second keypress
                         } else {
                             guard
@@ -265,6 +268,10 @@ final class GridOverlay {
         hide()
     }
 
+    func highlightCurrentGridDivision() {
+
+    }
+
     private func show() {
         guard let screen = NSScreen.main, let appState else { return }
         if window == nil {
@@ -307,78 +314,110 @@ struct GridOverlayView: View {
                     let endY = geo.size.height - inset
                     let cellWidth = (endX - startX) / CGFloat(state.gridDivisions)
                     let cellHeight = (endY - startY) / CGFloat(state.gridDivisions)
-
                     let innerCellWidth = cellWidth / CGFloat(state.innerGridDivisions)
                     let innerCellHeight = cellHeight / CGFloat(state.innerGridDivisions)
-                    let totalInner = state.gridDivisions * state.innerGridDivisions
 
-                    var innerPath = Path()
-                    for i in 1..<totalInner {
-                        guard i % state.innerGridDivisions != 0 else { continue }
-                        let x = startX + innerCellWidth * CGFloat(i)
-                        innerPath.move(to: CGPoint(x: x, y: startY))
-                        innerPath.addLine(to: CGPoint(x: x, y: endY))
-                        let y = startY + innerCellHeight * CGFloat(i)
-                        innerPath.move(to: CGPoint(x: startX, y: y))
-                        innerPath.addLine(to: CGPoint(x: endX, y: y))
-                    }
-                    ctx.stroke(innerPath, with: .color(.white.opacity(0.3)), lineWidth: 0.5)
+                    if let outerIndex = state.pendingOperation.pendingGridDivisionIndex {
+                        // Narrow to selected outer cell after first keypress
+                        let selectedCol = outerIndex % state.gridDivisions
+                        let selectedRow = outerIndex / state.gridDivisions
+                        let cellOriginX = startX + cellWidth * CGFloat(selectedCol)
+                        let cellOriginY = startY + cellHeight * CGFloat(selectedRow)
 
-                    var outerPath = Path()
-                    for i in 0...state.gridDivisions {
-                        let x = startX + cellWidth * CGFloat(i)
-                        outerPath.move(to: CGPoint(x: x, y: startY))
-                        outerPath.addLine(to: CGPoint(x: x, y: endY))
-                        let y = startY + cellHeight * CGFloat(i)
-                        outerPath.move(to: CGPoint(x: startX, y: y))
-                        outerPath.addLine(to: CGPoint(x: endX, y: y))
-                    }
-                    ctx.stroke(outerPath, with: .color(.white.opacity(0.6)), lineWidth: 1)
+                        var focusedPath = Path()
+                        for i in 0...state.innerGridDivisions {
+                            let x = cellOriginX + innerCellWidth * CGFloat(i)
+                            focusedPath.move(to: CGPoint(x: x, y: cellOriginY))
+                            focusedPath.addLine(to: CGPoint(x: x, y: cellOriginY + cellHeight))
+                            let y = cellOriginY + innerCellHeight * CGFloat(i)
+                            focusedPath.move(to: CGPoint(x: cellOriginX, y: y))
+                            focusedPath.addLine(to: CGPoint(x: cellOriginX + cellWidth, y: y))
+                        }
+                        ctx.stroke(focusedPath, with: .color(.white.opacity(0.6)), lineWidth: 1)
 
-                    // INFO: the -1 is to make sure it does not go beyond the gridInset
-                    for col in 0...state.gridDivisions - 1 {
-                        for row in 0...state.gridDivisions - 1 {
-                            let x = startX + cellWidth * CGFloat(col)
-                            let y = startY + cellHeight * CGFloat(row)
-                            let middleX = x + (cellWidth / 2)
-                            let middleY = y + (cellHeight / 2)
-                            let label = Text("\(Int(x)),\(Int(y))")
-                                .font(.system(size: 8))
+                        for innerCol in 0..<state.innerGridDivisions {
+                            for innerRow in 0..<state.innerGridDivisions {
+                                let innerIndex = innerRow * state.innerGridDivisions + innerCol
+                                let innerMiddleX =
+                                    cellOriginX + innerCellWidth * CGFloat(innerCol)
+                                    + innerCellWidth / 2
+                                let innerMiddleY =
+                                    cellOriginY + innerCellHeight * CGFloat(innerRow)
+                                    + innerCellHeight / 2
+                                let label = Text(
+                                    "\(state.findModeInnerGridDivisionCharacters[innerIndex])"
+                                )
+                                .font(.system(size: 12))
                                 .foregroundColor(.white)
+                                ctx.draw(
+                                    label, at: CGPoint(x: innerMiddleX, y: innerMiddleY),
+                                    anchor: .center)
+                            }
+                        }
+                    } else {
+                        // Default: outer grid + faint inner grid
+                        let totalInner = state.gridDivisions * state.innerGridDivisions
+                        var innerPath = Path()
+                        for i in 1..<totalInner {
+                            guard i % state.innerGridDivisions != 0 else { continue }
+                            let x = startX + innerCellWidth * CGFloat(i)
+                            innerPath.move(to: CGPoint(x: x, y: startY))
+                            innerPath.addLine(to: CGPoint(x: x, y: endY))
+                            let y = startY + innerCellHeight * CGFloat(i)
+                            innerPath.move(to: CGPoint(x: startX, y: y))
+                            innerPath.addLine(to: CGPoint(x: endX, y: y))
+                        }
+                        ctx.stroke(innerPath, with: .color(.white.opacity(0.3)), lineWidth: 0.5)
 
-                            let index = row * state.gridDivisions + col
-                            let findCharGridDivisionText = Text(
-                                "\(state.findModeGridDivisionCharacters[index])"
-                            )
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.blue)
-                            ctx.draw(label, at: CGPoint(x: x + 2, y: y + 2), anchor: .topLeading)
-                            ctx.draw(
-                                findCharGridDivisionText, at: CGPoint(x: middleX, y: middleY),
-                                anchor: .topLeading)
+                        var outerPath = Path()
+                        for i in 0...state.gridDivisions {
+                            let x = startX + cellWidth * CGFloat(i)
+                            outerPath.move(to: CGPoint(x: x, y: startY))
+                            outerPath.addLine(to: CGPoint(x: x, y: endY))
+                            let y = startY + cellHeight * CGFloat(i)
+                            outerPath.move(to: CGPoint(x: startX, y: y))
+                            outerPath.addLine(to: CGPoint(x: endX, y: y))
+                        }
+                        ctx.stroke(outerPath, with: .color(.white.opacity(0.6)), lineWidth: 1)
 
-                            for innerCol in 0...state.innerGridDivisions - 1 {
-                                for innerRow in 0...state.innerGridDivisions - 1 {
-                                    let innerX = x + innerCellWidth * CGFloat(innerCol)
-                                    let innerY = y + innerCellHeight * CGFloat(innerRow)
-                                    let middleInnerX = innerX + (innerCellWidth / 2)
-                                    let middleInnerY = innerY + (innerCellHeight / 2)
-
-                                    let innerIndex = innerRow * state.innerGridDivisions + innerCol
-                                    let findCharInnerGridDivisionText = Text(
-                                        "\(state.findModeInnerGridDivisionCharacters[innerIndex])"
-                                    )
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.white)
-                                    ctx.draw(
-                                        findCharInnerGridDivisionText,
-                                        at: CGPoint(
-                                            x: middleInnerX,
-                                            y: middleInnerY),
-                                        anchor: .topLeading)
+                        for col in 0..<state.gridDivisions {
+                            for row in 0..<state.gridDivisions {
+                                let x = startX + cellWidth * CGFloat(col)
+                                let y = startY + cellHeight * CGFloat(row)
+                                let index = row * state.gridDivisions + col
+                                let charLabel = Text(
+                                    "\(state.findModeGridDivisionCharacters[index])"
+                                )
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.blue)
+                                ctx.draw(
+                                    charLabel,
+                                    at: CGPoint(x: x + cellWidth / 2, y: y + cellHeight / 2),
+                                    anchor: .center)
+                                if state.isAlwaysShowInnerGridCharacters {
+                                    for innerCol in 0..<state.innerGridDivisions {
+                                        for innerRow in 0..<state.innerGridDivisions {
+                                            let innerX = x + innerCellWidth * CGFloat(innerCol)
+                                            let innerY = y + innerCellHeight * CGFloat(innerRow)
+                                            let middleInnerX = innerX + (innerCellWidth / 2)
+                                            let middleInnerY = innerY + (innerCellHeight / 2)
+                                            let innerIndex =
+                                                innerRow * state.innerGridDivisions + innerCol
+                                            let findCharInnerGridDivisionText = Text(
+                                                "\(state.findModeInnerGridDivisionCharacters[innerIndex])"
+                                            )
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.white)
+                                            ctx.draw(
+                                                findCharInnerGridDivisionText,
+                                                at: CGPoint(
+                                                    x: middleInnerX,
+                                                    y: middleInnerY),
+                                                anchor: .topLeading)
+                                        }
+                                    }
                                 }
                             }
-
                         }
                     }
                 }
