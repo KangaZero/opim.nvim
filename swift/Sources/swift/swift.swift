@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+struct PendingOperation {
+    var operation: String
+    var pendingGridDivisionIndex: Int?
+    var pendingInnerGridDivisionIndex: Int?
+}
+
 class NeoMouseState: ObservableObject {
     @Published var isNeomouseMode = false
     @Published var isFindMode = false
@@ -14,44 +20,137 @@ class NeoMouseState: ObservableObject {
     }
     @Published var findModeInnerGridDivisionCharacters: [String] = "abcdefghijklmnopqrstuvwxyz".map
     { String($0) }
+
+    @Published var pendingOperation = PendingOperation(
+        operation: "",
+        pendingGridDivisionIndex: nil,
+        pendingInnerGridDivisionIndex: nil
+    )
 }
 
 @main
 struct NeoMouse: App {
     private static var keyMonitor: Any?
     private static var mouseMonitor: Any?
-    @StateObject private var appState = NeoMouseState()
+    private static let sharedState = NeoMouseState()
+    @StateObject private var appState = NeoMouse.sharedState
 
     init() {
         //TODO add checks to make sure no unintended behavior of out of bounds access happens
         // eg.. gridDivisions * gridDivisions <=findModeGridDivisionCharacters.count, and similar for
         // innerGridDivisions
 
-        let appState = appState
+        let appState = NeoMouse.sharedState
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
-                //TODO: create a map to their respective keys, else it just looks like magic numbers
-                debug("Key code without modifierFlags: \(event.keyCode)")
-                switch event.keyCode {
-                case keyCodeToCharMap["f"]:
-                    guard appState.isNeomouseMode else { break }
-                    appState.isFindMode.toggle()
-                    ToastManager.shared.show(
-                        "Find Mode \(appState.isFindMode ? "On" : "Off")")
-                default: break
+                if !appState.isFindMode {
+                    switch event.keyCode {
+                    case keyCodeToCharMap["f"]:
+                        guard !event.modifierFlags.contains(.command) else { return }
+                        debug("Key code without modifierFlags: \(event.keyCode)")
+                        guard appState.isNeomouseMode else {
+                            debug("Not entering find mode because NeoMouse mode is off")
+                            break
+                        }
+                        appState.isFindMode = true
+                        GridOverlay.shared.passAppState(state: appState)
+                        GridOverlay.shared.showGrid()
+                        ToastManager.shared.show(
+                            "Find Mode On")
+                    default: break
+                    }
+                    guard event.modifierFlags.contains(.command) else { return }
+                    debug("Key code with modifierFlags: \(event.keyCode)")
+                    switch event.keyCode {
+                    case keyCodeToCharMap["e"]:
+                        appState.isNeomouseMode.toggle()
+                        ToastManager.shared.show(
+                            "NeoMouse Mode \(appState.isNeomouseMode ? "On" : "Off")")
+                    // case keyCodeToCharMap["g"]:
+                    //     guard appState.isNeomouseMode else { break }
+                    //     GridOverlay.shared.toggle(state: appState)
+                    default: break
+                    }
+
+                } else {
+                    // In isFindMode keys
+                    switch event.keyCode {
+                    case keyCodeToCharMap["Esc"]:
+                        NeoMouse.exitFindMode(appState: appState)
+                    default:
+                        //First get the convert of the keyCode to its equivalent character (as String)
+                        let keyCodeAsChar: String? = keyCodeToCharMap.first(where: {
+                            $0.value == event.keyCode
+                        })?.key
+                        guard let keyCodeAsChar = keyCodeAsChar else {
+                            debug("Not a recognized keyCode, cannot find character (key)")
+                            break
+                        }
+
+                        //TODO: check if this is the best place to put this
+                        appState.pendingOperation.operation.append(keyCodeAsChar)
+                        // First keypress
+                        if appState.pendingOperation.pendingGridDivisionIndex == nil {
+                            //If there is a first index match for the character in
+                            //findModeGridDivisionCharacters, we set the pendingGridDivisionIndex to the
+                            //matching index
+                            guard
+                                let gridDivisionCharactersIndex = appState
+                                    .findModeGridDivisionCharacters.firstIndex(of: keyCodeAsChar)
+                            else {
+                                return debug(
+                                    "\(keyCodeAsChar) is not part of findModeGridDivisionCharacters"
+                                )
+                            }
+                            appState.pendingOperation.pendingGridDivisionIndex =
+                                gridDivisionCharactersIndex
+                            // Second keypress
+                        } else {
+                            guard
+                                let innerGridDivisionCharactersIndex =
+                                    appState.findModeInnerGridDivisionCharacters.firstIndex(
+                                        of: keyCodeAsChar)
+                            else {
+                                return debug(
+                                    "\(keyCodeAsChar) is not part of findModeInnerGridDivisionCharacters"
+                                )
+                            }
+                            appState.pendingOperation.pendingInnerGridDivisionIndex =
+                                innerGridDivisionCharactersIndex
+                            appState.pendingOperation.operation.append(keyCodeAsChar)
+                            let col =
+                                appState.pendingOperation.pendingGridDivisionIndex!
+                                % appState.gridDivisions
+                            let row =
+                                appState.pendingOperation.pendingGridDivisionIndex!
+                                / appState.gridDivisions
+                            let innerCol =
+                                appState.pendingOperation.pendingInnerGridDivisionIndex!
+                                % appState.innerGridDivisions
+                            let innerRow =
+                                appState.pendingOperation.pendingInnerGridDivisionIndex!
+                                / appState.innerGridDivisions
+                            let cellWidth =
+                                (NSScreen.main!.frame.width - 2 * appState.gridInset)
+                                / CGFloat(appState.gridDivisions)
+                            let cellHeight =
+                                (NSScreen.main!.frame.height - 2 * appState.gridInset)
+                                / CGFloat(appState.gridDivisions)
+                            let innerCellWidth = cellWidth / CGFloat(appState.innerGridDivisions)
+                            let innerCellHeight = cellHeight / CGFloat(appState.innerGridDivisions)
+                            let targetX =
+                                appState.gridInset + CGFloat(col) * cellWidth + CGFloat(innerCol)
+                                * innerCellWidth + innerCellWidth / 2
+                            let targetY =
+                                appState.gridInset + CGFloat(row) * cellHeight + CGFloat(innerRow)
+                                * innerCellHeight + innerCellHeight / 2
+                            moveMouseByExactCoordinates(x: targetX, y: targetY)
+                            NeoMouse.exitFindMode(appState: appState)
+
+                        }
+                    }
                 }
-                guard event.modifierFlags.contains(.command) else { return }
-                debug("Key code with modifierFlags: \(event.keyCode)")
-                switch event.keyCode {
-                case keyCodeToCharMap["e"]:
-                    appState.isNeomouseMode.toggle()
-                    ToastManager.shared.show(
-                        "NeoMouse Mode \(appState.isNeomouseMode ? "On" : "Off")")
-                case keyCodeToCharMap["g"]:
-                    guard appState.isNeomouseMode else { break }
-                    GridOverlay.shared.toggle(state: appState)
-                default: break
-                }
+
             }
         }
         NeoMouse.mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { event in
@@ -67,6 +166,15 @@ struct NeoMouse: App {
             CustomMenuBarView(state: appState)
         }
         .menuBarExtraStyle(.window)
+    }
+    private static func exitFindMode(appState: NeoMouseState) {
+        appState.isFindMode = false
+        appState.pendingOperation.pendingGridDivisionIndex = nil
+        appState.pendingOperation.pendingInnerGridDivisionIndex = nil
+        appState.pendingOperation.operation = ""
+        GridOverlay.shared.hideGrid()
+        ToastManager.shared.show(
+            "Find Mode Off")
     }
 }
 
@@ -137,10 +245,24 @@ final class GridOverlay {
     private var isVisible = false
     private weak var appState: NeoMouseState?
 
-    func toggle(state: NeoMouseState) {
+    // func toggle(state: NeoMouseState) {
+    //     appState = state
+    //     isVisible ? hide() : show()
+    //     isVisible.toggle()
+    // }
+
+    func passAppState(state: NeoMouseState) {
         appState = state
-        isVisible ? hide() : show()
-        isVisible.toggle()
+    }
+
+    func showGrid() {
+        isVisible = true
+        show()
+    }
+
+    func hideGrid() {
+        isVisible = false
+        hide()
     }
 
     private func show() {
@@ -185,7 +307,6 @@ struct GridOverlayView: View {
                     let endY = geo.size.height - inset
                     let cellWidth = (endX - startX) / CGFloat(state.gridDivisions)
                     let cellHeight = (endY - startY) / CGFloat(state.gridDivisions)
-                    // var findCharGridDivisionTextIndex: Int = 1
 
                     let innerCellWidth = cellWidth / CGFloat(state.innerGridDivisions)
                     let innerCellHeight = cellHeight / CGFloat(state.innerGridDivisions)
@@ -229,12 +350,35 @@ struct GridOverlayView: View {
                             let findCharGridDivisionText = Text(
                                 "\(state.findModeGridDivisionCharacters[index])"
                             )
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.blue)
                             ctx.draw(label, at: CGPoint(x: x + 2, y: y + 2), anchor: .topLeading)
                             ctx.draw(
                                 findCharGridDivisionText, at: CGPoint(x: middleX, y: middleY),
                                 anchor: .topLeading)
+
+                            for innerCol in 0...state.innerGridDivisions - 1 {
+                                for innerRow in 0...state.innerGridDivisions - 1 {
+                                    let innerX = x + innerCellWidth * CGFloat(innerCol)
+                                    let innerY = y + innerCellHeight * CGFloat(innerRow)
+                                    let middleInnerX = innerX + (innerCellWidth / 2)
+                                    let middleInnerY = innerY + (innerCellHeight / 2)
+
+                                    let innerIndex = innerRow * state.innerGridDivisions + innerCol
+                                    let findCharInnerGridDivisionText = Text(
+                                        "\(state.findModeInnerGridDivisionCharacters[innerIndex])"
+                                    )
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white)
+                                    ctx.draw(
+                                        findCharInnerGridDivisionText,
+                                        at: CGPoint(
+                                            x: middleInnerX,
+                                            y: middleInnerY),
+                                        anchor: .topLeading)
+                                }
+                            }
+
                         }
                     }
                 }
