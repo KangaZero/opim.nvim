@@ -1,7 +1,16 @@
 import AppKit
 
 func moveMouseByExactCoordinates(x: CGFloat, y: CGFloat) {
-    CGWarpMouseCursorPosition(CGPoint(x: x, y: y))
+    let current = NSEvent.mouseLocation  // AppKit coords (origin bottom-left)
+
+    guard let currentScreen = NSScreen.screens.first(where: { $0.frame.contains(current) }) else {
+        debug("Could not retrieve current screen in moveMouseByExactCoordinates")
+        return
+    }
+    guard let primaryScreen = NSScreen.screens.first else { return }
+    let cgX = currentScreen.frame.origin.x + x
+    let cgY = primaryScreen.frame.height - currentScreen.frame.origin.y - currentScreen.frame.height + y
+    CGWarpMouseCursorPosition(CGPoint(x: cgX, y: cgY))
 }
 
 func getCurrentMouseLocation() -> CGPoint? {

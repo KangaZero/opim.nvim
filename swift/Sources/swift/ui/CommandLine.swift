@@ -15,7 +15,6 @@ final class CommandLine {
                 (NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }),
             let appState
         else {
-            return
             return debug(
                 "Could not retrieve current screen in CommandLine.show and/or appState is \(appState == nil ? "nil" : "not nil")"
             )

@@ -76,7 +76,6 @@ struct NeoMouse: App {
                     default:
                         return
                     }
-                    break
                 case .normal:
                     switch event.keyCode {
                     //TODO: Add "$", "^ : where it will go to the most left/right of the current
@@ -88,8 +87,9 @@ struct NeoMouse: App {
                             "modifierFlags:false, isNeomouseMode:true, key:f, keyCode:\(event.keyCode)"
                         )
                         appState.mode = .find(
-                            pendingGridDivisionIndex: nil,
-                            pendingInnerGridDivisionIndex: nil)
+                            currentPendingOperation: nil,
+                            findState: FindState(),
+                            findOperationsExecuted: nil)
                         GridOverlay.shared.passAppState(state: appState)
                         GridOverlay.shared.showGrid()
                         ToastManager.shared.show(
@@ -181,20 +181,15 @@ struct NeoMouse: App {
                     switch event.keyCode {
                     case keyCodeToCharMap["e"]:
                         guard event.modifierFlags.contains(.command) else {
-                            //Possibly in isFindMode, if modifier is not pressed.
-                            //Guard clause included in the fn itself if !isFindMode or some other
-                            //modifier is being used
                             return NeoMouse.executeFindModeOperation(
                                 event: event, appState: appState)
                         }
                         debug(
-                            "modifierFlags:true, modifier: \(event.modifierFlags), isNeomouseMode:\(appState.isNeomouseMode), key:e, keyCode:\(event.keyCode)"
+                            "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
                         )
-                        appState.pendingOperation.operation.append("⌘e")
-                        appState.isNeomouseMode.toggle()
-                        ToastManager.shared.show(
-                            "NeoMouse Mode \(appState.isNeomouseMode ? "On" : "Off")")
-                        appState.pendingOperation.operation = ""
+                        appState.mode = .disabled
+                        GridOverlay.shared.hideGrid()
+                        ToastManager.shared.show("NeoMouse Deactivated")
 
                     // case keyCodeToCharMap["f"]:
                     //     guard event.modifierFlags.isEmpty else { return }
@@ -222,7 +217,6 @@ struct NeoMouse: App {
                 }
             }
         }
-        // }
         NeoMouse.mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { event in
             MainActor.assumeIsolated {
                 appState.mouseX = NSEvent.mouseLocation.x
@@ -232,10 +226,7 @@ struct NeoMouse: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("neomouse", systemImage: "bell") {
-            CustomMenuBarView(state: appState)
-        }
-        .menuBarExtraStyle(.window)
+        Settings { EmptyView() }
     }
     private static func exitFindMode(appState: NeoMouseState) {
         appState.mode = .normal(currentPendingOperation: nil, normalOperationsExecuted: nil)
@@ -614,57 +605,57 @@ struct GridOverlayView: View {
 
 // MARK: - Menu Bar View
 
-struct CustomMenuBarView: View {
-    @ObservedObject var state: NeoMouseState
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Image(systemName: "cursorarrow.motionlines")
-                    .font(.title2)
-                Text("NeoMouse")
-                    .font(.headline)
-                Spacer()
-                Circle()
-                    .fill(state.isNeomouseMode ? .green : .red)
-                    .frame(width: 8, height: 8)
-            }
-            .padding()
-            .background(.ultraThinMaterial)
-
-            Divider()
-
-            // Mouse position
-            VStack(alignment: .leading, spacing: 4) {
-                Label("x: \(Int(state.mouseX))", systemImage: "arrow.left.and.right")
-                Label("y: \(Int(state.mouseY))", systemImage: "arrow.up.and.down")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-
-            Divider()
-
-            // Toggle
-            Toggle("NeoMouse Mode", isOn: $state.isNeomouseMode)
-                .padding()
-                .toggleStyle(.switch)
-
-            Divider()
-
-            Button("Send Notification") {
-                ToastManager.shared.show("Hello from NeoMouse!")
-            }
-            .buttonStyle(.borderless)
-            .padding(.vertical, 6)
-
-            Divider()
-
-            Button("Quit") { NSApp.terminate(nil) }
-                .foregroundColor(.red)
-                .buttonStyle(.borderless)
-                .padding(.vertical, 6)
-        }
-        .frame(width: 220)
-    }
-}
+// struct CustomMenuBarView: View {
+//     @ObservedObject var state: NeoMouseState
+//
+//     var body: some View {
+//         VStack(spacing: 0) {
+//             // Header
+//             HStack {
+//                 Image(systemName: "cursorarrow.motionlines")
+//                     .font(.title2)
+//                 Text("NeoMouse")
+//                     .font(.headline)
+//                 Spacer()
+//                 Circle()
+//                     .fill(case state.mod = .normal ? .green : .red)
+//                     .frame(width: 8, height: 8)
+//             }
+//             .padding()
+//             .background(.ultraThinMaterial)
+//
+//             Divider()
+//
+//             // Mouse position
+//             VStack(alignment: .leading, spacing: 4) {
+//                 Label("x: \(Int(state.mouseX))", systemImage: "arrow.left.and.right")
+//                 Label("y: \(Int(state.mouseY))", systemImage: "arrow.up.and.down")
+//             }
+//             .frame(maxWidth: .infinity, alignment: .leading)
+//             .padding()
+//
+//             Divider()
+//
+//             // Toggle
+//             Toggle("NeoMouse Mode", isOn: $state.isNeomouseMode)
+//                 .padding()
+//                 .toggleStyle(.switch)
+//
+//             Divider()
+//
+//             Button("Send Notification") {
+//                 ToastManager.shared.show("Hello from NeoMouse!")
+//             }
+//             .buttonStyle(.borderless)
+//             .padding(.vertical, 6)
+//
+//             Divider()
+//
+//             Button("Quit") { NSApp.terminate(nil) }
+//                 .foregroundColor(.red)
+//                 .buttonStyle(.borderless)
+//                 .padding(.vertical, 6)
+//         }
+//         .frame(width: 220)
+//     }
+// }
