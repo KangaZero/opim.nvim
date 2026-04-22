@@ -1,14 +1,7 @@
-import CoreGraphics
-
 // MARK: - Supporting Types
 struct FindState {
     var pendingGridDivisionIndex: Int? = nil
     var pendingInnerGridDivisionIndex: Int? = nil
-}
-
-struct Operation {
-    var operation: String
-    var point: CGPoint
 }
 
 // MARK: - Mode
@@ -21,7 +14,7 @@ enum Mode {
     case find(
         currentPendingOperation: String?,
         findState: FindState,
-        findOperationsExecuted: [Operation]?
+        findOperationsExecuted: [FindOperation]?
     )
     case command(
         currentPendingOperation: String?,

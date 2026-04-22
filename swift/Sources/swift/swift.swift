@@ -1,11 +1,12 @@
 import AppKit
 import SwiftUI
 
-struct PendingOperation {
-    var operation: String
-    var pendingGridDivisionIndex: Int?
-    var pendingInnerGridDivisionIndex: Int?
-}
+//
+// struct PendingOperation {
+//     var operation: String
+//     var pendingGridDivisionIndex: Int?
+//     var pendingInnerGridDivisionIndex: Int?
+// }
 
 class NeoMouseState: ObservableObject {
     @Published var mode: Mode = .disabled
@@ -29,11 +30,11 @@ class NeoMouseState: ObservableObject {
         String($0)
     }
 
-    @Published var pendingOperation = PendingOperation(
-        operation: "",
-        pendingGridDivisionIndex: nil,
-        pendingInnerGridDivisionIndex: nil
-    )
+    // @Published var pendingOperation = PendingOperation(
+    //     operation: "",
+    //     pendingGridDivisionIndex: nil,
+    //     pendingInnerGridDivisionIndex: nil
+    // )
     let rangeX: CGFloat = 20
     let rangeY: CGFloat = 20
     // let isIgnoresSafeArea = true
@@ -102,12 +103,13 @@ struct NeoMouse: App {
                         )
                         //TODO check that if the operation except the lastIndex are only nums
                         let operationCount: CGFloat = 1
-                        appState.pendingOperation.operation.append("h")
+                        appState.mode = .normal(
+                            currentPendingOperation: "\(operationCount)h",
+                            normalOperationsExecuted: nil)
                         moveMouseRelatively(
                             x: -appState.rangeX * operationCount, y: 0,
                             enableClamp:
                                 appState.isClampCursorToScreen)
-                        appState.pendingOperation.operation = ""
                     //TODO check that if the operation except the lastIndex are only nums
                     case keyCodeToCharMap["j"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
@@ -154,7 +156,7 @@ struct NeoMouse: App {
                             debug("Could not retrieve current mouse location for operation '0")
                             break
                         }
-                        moveMouseByExactCoordinates(
+                        moveMouseByExactCoordinatesOnCurrentScreen(
                             x: 0 + appState.gridInset, y: currentCGPoint.y)
                         appState.pendingOperation.operation = ""
                     case keyCodeToCharMap["4"]:
@@ -172,7 +174,7 @@ struct NeoMouse: App {
                             debug("Could not retrieve current screen size for operation '4")
                             break
                         }
-                        moveMouseByExactCoordinates(
+                        moveMouseByExactCoordinatesOnCurrentScreen(
                             x: currentScreenSize.width - appState.gridInset, y: currentCGPoint.y)
                         appState.pendingOperation.operation = ""
                     default: break
@@ -336,7 +338,7 @@ struct NeoMouse: App {
             let targetY =
                 appState.gridInset + CGFloat(row) * cellHeight + CGFloat(innerRow)
                 * innerCellHeight + innerCellHeight / 2
-            moveMouseByExactCoordinates(x: targetX, y: targetY)
+            moveMouseByExactCoordinatesOnCurrentScreen(x: targetX, y: targetY)
             NeoMouse.exitFindMode(appState: appState)
 
         }
