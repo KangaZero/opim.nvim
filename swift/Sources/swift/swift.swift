@@ -55,18 +55,33 @@ struct NeoMouse: App {
         let appState = NeoMouse.sharedState
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
-                guard let currentCGPoint = getCurrentMouseLocation(),
-                    let currentScreenSize = getCurrentScreenSize(),
-                    let currentScreen = NSScreen.screens.first(where: {
-                        $0.frame.contains(NSEvent.mouseLocation)
-                    }),
-                    let primaryScreen = NSScreen.screens.first
+                let _currentCGPoint = getCurrentMouseLocation()
+                let _currentNSPoint = NSEvent.mouseLocation
+                let _currentScreenSize = getCurrentScreenSize()
+                let _currentScreen = NSScreen.screens.first(where: {
+                    $0.frame.contains(NSEvent.mouseLocation)
+                })
+                let _primaryScreen = NSScreen.screens.first
+                guard let currentCGPoint = _currentCGPoint,
+                    let currentScreenSize = _currentScreenSize,
+                    let currentScreen = _currentScreen,
+                    let primaryScreen = _primaryScreen
                 else {
                     debug(
-                        "Could not getCurrentMouseLocation and/or getCurrentScreenSize"
+                        """
+                        [guard fail]
+                          currentNSPoint = \(String(describing: _currentNSPoint))
+                          currentCGPoint  = \(String(describing: _currentCGPoint))
+                          currentScreenSize = \(String(describing: _currentScreenSize))
+                          currentScreen   = \(String(describing: _currentScreen))
+                          primaryScreen   = \(String(describing: _primaryScreen))
+                        """
                     )
                     return
                 }
+                debug(
+                    "allScreensRect: \(String(describing:getAllScreensBoundingRect)) NSScreen = \(String(describing: NSScreen.screens))"
+                )
                 // currentCGPoint is in global CG space (top-left of primary = origin).
                 // moveMouseByExactCoordinatesOnCurrentScreen expects screen-local CG coords
                 // (top-left of the *current* screen = origin). On the primary screen these
@@ -76,10 +91,6 @@ struct NeoMouse: App {
                     y: currentCGPoint.y
                         - (primaryScreen.frame.height - currentScreen.frame.origin.y
                             - currentScreen.frame.height)
-                )
-                // //Need this as to allow other program shortcuts to work
-                debug(
-                    "modifier: \(event.modifierFlags), mode:\(appState.mode), key:\(keyCodeToCharMap.first(where: {$0.value == event.keyCode})?.key ?? "Not recognized"), keyCode:\(event.keyCode)"
                 )
                 var operationCount: CGFloat = 1
                 if case .normal(let currentPendingNormalOperation) = appState.mode,
@@ -95,6 +106,19 @@ struct NeoMouse: App {
                 {
                     operationCount = CGFloat(currentPendingNormalOperationAsFloat)
                 }
+                let _key = keyCodeToCharMap.first(where: { $0.value == event.keyCode })?.key ?? "?"
+                debug(
+                    """
+                    [keyDown]
+                      key            = \(_key) (keyCode=\(event.keyCode))
+                      modifiers      = \(event.modifierFlags.rawValue)
+                      mode           = \(appState.mode)
+                      cgPoint        = (\(Int(currentCGPoint.x)), \(Int(currentCGPoint.y)))
+                      localCGPoint   = (\(Int(localCGPoint.x)), \(Int(localCGPoint.y)))
+                      screen         = \(currentScreen.localizedName)
+                      operationCount = \(operationCount)
+                    """
+                )
                 switch appState.mode {
                 case .disabled:
                     switch event.keyCode {

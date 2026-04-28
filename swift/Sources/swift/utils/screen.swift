@@ -14,3 +14,7 @@ import AppKit
 func getCurrentScreenSize() -> CGSize? {
     return NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }?.frame.size
 }
+
+func getAllScreensBoundingRect() -> CGRect {
+    return NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+}
