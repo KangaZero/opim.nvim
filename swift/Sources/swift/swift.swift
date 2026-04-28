@@ -56,14 +56,27 @@ struct NeoMouse: App {
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
                 guard let currentCGPoint = getCurrentMouseLocation(),
-                    let
-                        currentScreenSize = getCurrentScreenSize()
+                    let currentScreenSize = getCurrentScreenSize(),
+                    let currentScreen = NSScreen.screens.first(where: {
+                        $0.frame.contains(NSEvent.mouseLocation)
+                    }),
+                    let primaryScreen = NSScreen.screens.first
                 else {
                     debug(
                         "Could not getCurrentMouseLocation and/or getCurrentScreenSize"
                     )
                     return
                 }
+                // currentCGPoint is in global CG space (top-left of primary = origin).
+                // moveMouseByExactCoordinatesOnCurrentScreen expects screen-local CG coords
+                // (top-left of the *current* screen = origin). On the primary screen these
+                // are identical; on secondary screens the origin offset makes them diverge.
+                let localCGPoint = CGPoint(
+                    x: currentCGPoint.x - currentScreen.frame.origin.x,
+                    y: currentCGPoint.y
+                        - (primaryScreen.frame.height - currentScreen.frame.origin.y
+                            - currentScreen.frame.height)
+                )
                 // //Need this as to allow other program shortcuts to work
                 debug(
                     "modifier: \(event.modifierFlags), mode:\(appState.mode), key:\(keyCodeToCharMap.first(where: {$0.value == event.keyCode})?.key ?? "Not recognized"), keyCode:\(event.keyCode)"
@@ -184,7 +197,7 @@ struct NeoMouse: App {
                         {
 
                             moveMouseByExactCoordinatesOnCurrentScreen(
-                                x: currentCGPoint.x,
+                                x: localCGPoint.x,
                                 y: currentScreenSize.height - appState.gridInset)
                             break
                         }
@@ -196,7 +209,7 @@ struct NeoMouse: App {
                         // "g" instead of "gg" as the following "g" is only appended/updated onto appState after current MainActor event
                         if operationCount > 0 && currentPendingNormalOperation?.last == "g" {
                             moveMouseByExactCoordinatesOnCurrentScreen(
-                                x: currentCGPoint.x,
+                                x: localCGPoint.x,
                                 y: ((currentScreenSize.height - appState.gridInset)
                                     / appState.linesOnScreen)
                                     * operationCount)
@@ -209,7 +222,7 @@ struct NeoMouse: App {
                             break
                         } else if currentPendingNormalOperation == "g" {
                             moveMouseByExactCoordinatesOnCurrentScreen(
-                                x: currentCGPoint.x, y: 0 + appState.gridInset)
+                                x: localCGPoint.x, y: 0 + appState.gridInset)
                             appState.mode = .normal(
                                 currentPendingOperation: "gg",
                             )
@@ -226,7 +239,7 @@ struct NeoMouse: App {
                             || event.modifierFlags.contains(.capsLock)
                         {
                             moveMouseByExactCoordinatesOnCurrentScreen(
-                                x: currentCGPoint.x,
+                                x: localCGPoint.x,
                                 y:
                                     currentScreenSize.height / 2)
                             appState.mode = .normal(
@@ -241,8 +254,7 @@ struct NeoMouse: App {
                         } else if currentPendingNormalOperation == "g" {
                             moveMouseByExactCoordinatesOnCurrentScreen(
                                 x: currentScreenSize.width / 2,
-                                y:
-                                    currentCGPoint.y)
+                                y: localCGPoint.y)
                             appState.mode = .normal(
                                 currentPendingOperation: nil
                             )
@@ -270,7 +282,7 @@ struct NeoMouse: App {
                             break
                         }
                         moveMouseByExactCoordinatesOnCurrentScreen(
-                            x: 0 + appState.gridInset, y: currentCGPoint.y)
+                            x: 0 + appState.gridInset, y: localCGPoint.y)
                     case keyCodeToCharMap["1"]:
                         if event.modifierFlags.rawValue == 256 {
                             appState.mode = .normal(
@@ -310,7 +322,7 @@ struct NeoMouse: App {
                         }
                         //"$" operator
                         moveMouseByExactCoordinatesOnCurrentScreen(
-                            x: currentScreenSize.width - appState.gridInset, y: currentCGPoint.y)
+                            x: currentScreenSize.width - appState.gridInset, y: localCGPoint.y)
                         appState.mode = .normal(
                             currentPendingOperation: nil
                         )

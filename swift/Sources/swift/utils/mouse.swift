@@ -1,5 +1,9 @@
 import AppKit
 
+func moveMouseByExactGlobalCGPoint(x: CGFloat, y: CGFloat) {
+    CGWarpMouseCursorPosition(CGPoint(x: x, y: y))
+}
+
 func moveMouseByExactCoordinatesOnCurrentScreen(x: CGFloat, y: CGFloat) {
     let current = NSEvent.mouseLocation  // AppKit coords (origin bottom-left)
 

@@ -102,7 +102,7 @@ func buildKeyCodeMap() -> [String: UInt16] {
         "-": 27,
         ".": 47,
         "/": 44,
-        "+": 24,
+        "=": 24,
         "Esc": 53,
     ]
     for remainingKey in remainingKeys {
