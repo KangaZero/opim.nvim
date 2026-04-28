@@ -32,12 +32,7 @@ class NeoMouseState: ObservableObject {
     let findModeInnerGridDivisionCharacters: [String] = "abcdefghijklmnopqrstuvwxyz".map {
         String($0)
     }
-
-    // @Published var pendingOperation = PendingOperation(
-    //     operation: "",
-    //     pendingGridDivisionIndex: nil,
-    //     pendingInnerGridDivisionIndex: nil
-    // )
+    let linesOnScreen: CGFloat = 50
     let rangeX: CGFloat = 20
     let rangeY: CGFloat = 20
     // let isIgnoresSafeArea = true
@@ -60,16 +55,43 @@ struct NeoMouse: App {
         let appState = NeoMouse.sharedState
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
+                guard let currentCGPoint = getCurrentMouseLocation(),
+                    let
+                        currentScreenSize = getCurrentScreenSize()
+                else {
+                    debug(
+                        "Could not getCurrentMouseLocation and/or getCurrentScreenSize"
+                    )
+                    return
+                }
                 // //Need this as to allow other program shortcuts to work
+                debug(
+                    "modifier: \(event.modifierFlags), mode:\(appState.mode), key:\(keyCodeToCharMap.first(where: {$0.value == event.keyCode})?.key ?? "Not recognized"), keyCode:\(event.keyCode)"
+                )
+                var operationCount: CGFloat = 1
+                if case .normal(let currentPendingNormalOperation) = appState.mode,
+                    let currentPendingNormalOperation,
+                    let currentPendingNormalOperationAsFloat =
+                        Float(
+                            currentPendingNormalOperation.filter {
+                                $0.isNumber || $0 == "."
+                            },
+
+                        ),
+                    currentPendingNormalOperationAsFloat != 0
+                {
+                    operationCount = CGFloat(currentPendingNormalOperationAsFloat)
+                }
                 switch appState.mode {
                 case .disabled:
                     switch event.keyCode {
                     case keyCodeToCharMap["e"]:
                         guard event.modifierFlags.contains(.command) else { return }
-                        debug(
-                            "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
-                        )
+                        // debug(
+                        //     "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
+                        // )
                         appState.mode = .normal(
+                            //TODO get session's last mode and pending operation and set to that instead of always resetting to normal mode with no pending operation
                             currentPendingOperation: nil,
                         )
                         ToastManager.shared.show(
@@ -82,9 +104,9 @@ struct NeoMouse: App {
                     switch event.keyCode {
                     case keyCodeToCharMap["e"]:
                         guard event.modifierFlags.contains(.command) else { return }
-                        debug(
-                            "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
-                        )
+                        // debug(
+                        //     "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
+                        // )
                         appState.mode = .disabled
                         ToastManager.shared.show(
                             "Neomouse Deactivated")
@@ -92,16 +114,13 @@ struct NeoMouse: App {
                     //TODO: Add "$", "^ : where it will go to the most left/right of the current
                     //focused window", "g$" for most right, hjkl, counters,
                     case keyCodeToCharMap["f"]:
+                        // debug(
+                        //     "modifierFlags:\(event.modifierFlags.rawValue), isNeomouseMode:true, key:f, keyCode:\(event.keyCode) - not activating find mode because modifier is pressed"
+                        // )
                         //INFO: 256 means no modifier is pressed, do not use .isEmpty method
                         guard event.modifierFlags.rawValue == 256 else {
                             return
-                                debug(
-                                    "modifierFlags:\(event.modifierFlags), isNeomouseMode:true, key:f, keyCode:\(event.keyCode) - not activating find mode because modifier is pressed"
-                                )
                         }
-                        debug(
-                            "modifierFlags:false, isNeomouseMode:true, key:f, keyCode:\(event.keyCode)"
-                        )
                         appState.mode = .find(
                             currentPendingOperation: nil,
                             findState: FindState()
@@ -110,76 +129,60 @@ struct NeoMouse: App {
                         GridOverlay.shared.showGrid()
                         ToastManager.shared.show(
                             "Find Mode")
+                        return
                     // INFO: Here starts VIM-like motions on the cursor
                     case keyCodeToCharMap["h"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
-                        debug(
-                            "modifierFlags:false, isNeomouseMode:true, key:h, keyCode:\(event.keyCode)"
-                        )
-                        //TODO check that if the operation except the lastIndex are only nums
-                        let operationCount: CGFloat = 1
-                        appState.mode = .normal(
-                            currentPendingOperation: "\(operationCount)h",
-                        )
+                        // appState.mode = .normal(
+                        //     currentPendingOperation: "\(operationCount)h",
+                        // )
                         moveMouseRelatively(
                             x: -appState.rangeX * operationCount, y: 0,
                             enableClamp:
                                 appState.isClampCursorToScreen)
+                        appState.mode = .normal(
+                            currentPendingOperation: nil
+                        )
+                        break
                     //TODO check that if the operation except the lastIndex are only nums
                     case keyCodeToCharMap["j"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
-                        debug(
-                            "modifierFlags:false, isNeomouseMode:true, key:j, keyCode:\(event.keyCode)"
-                        )
-                        let operationCount: CGFloat = 1
                         moveMouseRelatively(
                             x: 0, y: appState.rangeY * operationCount,
                             enableClamp:
                                 appState.isClampCursorToScreen)
+                        appState.mode = .normal(
+                            currentPendingOperation: nil
+                        )
+                        break
                     case keyCodeToCharMap["k"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
-                        let operationCount: CGFloat = 1
                         moveMouseRelatively(
                             x: 0, y: -appState.rangeY * operationCount,
                             enableClamp:
                                 appState.isClampCursorToScreen)
-
-                        debug(
-                            "modifierFlags:false, isNeomouseMode:true, key:k, keyCode:\(event.keyCode)"
+                        appState.mode = .normal(
+                            currentPendingOperation: nil
                         )
-                    // appState.pendingOperation.operation.append("k")
-                    // appState.pendingOperation.operation = ""
+                        break
                     case keyCodeToCharMap["l"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
-                        debug(
-                            "modifierFlags:false, isNeomouseMode:true, key:l, keyCode:\(event.keyCode)"
-                        )
-                        //TODO check that if the operation except the lastIndex are only nums
-                        let operationCount: CGFloat = 1
-                        appState.mode = .normal(
-                            currentPendingOperation: "\(operationCount)h",
-                        )
+                        // appState.mode = .normal(
+                        //     currentPendingOperation: "\(operationCount)h",
+                        // )
                         moveMouseRelatively(
                             x: appState.rangeX * operationCount, y: 0,
                             enableClamp:
                                 appState.isClampCursorToScreen)
-
-                    case keyCodeToCharMap["g"]:
-                        debug(
-                            "modifierFlags:\(event.modifierFlags.rawValue), isNeomouseMode:true, key:g, keyCode:\(event.keyCode)"
+                        appState.mode = .normal(
+                            currentPendingOperation: nil
                         )
+                        break
+                    case keyCodeToCharMap["g"]:
                         if event.modifierFlags.contains(.shift)
                             || event.modifierFlags.contains(.capsLock)
                         {
-                            guard let currentCGPoint = getCurrentMouseLocation(),
-                                let
-                                    currentScreenSize = getCurrentScreenSize()
-                            else {
-                                debug(
-                                    "Could not getCurrentMouseLocation and/or getCurrentScreenSize for operation 'G"
-                                )
-                                return
-                            }
+
                             moveMouseByExactCoordinatesOnCurrentScreen(
                                 x: currentCGPoint.x,
                                 y: currentScreenSize.height - appState.gridInset)
@@ -190,63 +193,168 @@ struct NeoMouse: App {
                         appState.mode = .normal(
                             currentPendingOperation: (currentPendingNormalOperation ?? "") + "g",
                         )
-                        // "g" instead of "gg" as the following "g" is only appended after current MainActor event
-                        if currentPendingNormalOperation == "g" {
-                            guard let currentCGPoint = getCurrentMouseLocation() else {
-                                debug("Could not retrieve current mouse location for operation 'gg")
-                                return
-                            }
+                        // "g" instead of "gg" as the following "g" is only appended/updated onto appState after current MainActor event
+                        if operationCount > 0 && currentPendingNormalOperation?.last == "g" {
+                            moveMouseByExactCoordinatesOnCurrentScreen(
+                                x: currentCGPoint.x,
+                                y: ((currentScreenSize.height - appState.gridInset)
+                                    / appState.linesOnScreen)
+                                    * operationCount)
+                            // y: appState.gridInset + currentScreenSize.height
+                            //     - ((currentScreenSize.height / appState.linesOnScreen)
+                            //         * operationCount))
+                            appState.mode = .normal(
+                                currentPendingOperation: nil
+                            )
+                            break
+                        } else if currentPendingNormalOperation == "g" {
                             moveMouseByExactCoordinatesOnCurrentScreen(
                                 x: currentCGPoint.x, y: 0 + appState.gridInset)
+                            appState.mode = .normal(
+                                currentPendingOperation: "gg",
+                            )
+                            //TODO dont reset normal mode just yet, need to account for ggvG
+                            //TODO Remove below when v is added
                             appState.mode = .normal(
                                 currentPendingOperation: nil
                             )
                             break
                         }
+                        break
+                    case keyCodeToCharMap["m"]:
+                        if event.modifierFlags.contains(.shift)
+                            || event.modifierFlags.contains(.capsLock)
+                        {
+                            moveMouseByExactCoordinatesOnCurrentScreen(
+                                x: currentCGPoint.x,
+                                y:
+                                    currentScreenSize.height / 2)
+                            appState.mode = .normal(
+                                currentPendingOperation: nil
+                            )
+                            break
+                        }
+                        guard event.modifierFlags.rawValue == 256 else { return }
 
+                        if currentPendingNormalOperation == nil {
+                            //TODO add mark fn
+                        } else if currentPendingNormalOperation == "g" {
+                            moveMouseByExactCoordinatesOnCurrentScreen(
+                                x: currentScreenSize.width / 2,
+                                y:
+                                    currentCGPoint.y)
+                            appState.mode = .normal(
+                                currentPendingOperation: nil
+                            )
+                            break
+                        }
+                        debug(
+                            "Should not happen: operation 'm' should not fall through to execute nothing"
+                        )
+                        break
+                    //TODO change to current focused app and add in for g0
                     case keyCodeToCharMap["0"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
-                        debug(
-                            "modifierFlags:false, isNeomouseMode:true, key:0, keyCode:\(event.keyCode)"
-                        )
-                        // appState.pendingOperation.operation.append("0")
                         //Not a count-based operation, so execute "go to start of current
                         //x-axis-line (Similar to Vim's go to start of line)
-                        let currentPendingOperationCount = currentPendingNormalOperation?.count
                         guard
-                            currentPendingOperationCount == nil || currentPendingOperationCount == 1
+                            currentPendingNormalOperation == nil
                         else {
                             debug(
-                                "operation count != 1, count: \(currentPendingOperationCount ?? -1)"
+                                ""
+                            )
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "0",
                             )
                             //TODO: Add to counter operation
                             break
                         }
-                        guard let currentCGPoint = getCurrentMouseLocation() else {
-                            debug("Could not retrieve current mouse location for operation '0")
-                            break
-                        }
                         moveMouseByExactCoordinatesOnCurrentScreen(
                             x: 0 + appState.gridInset, y: currentCGPoint.y)
-                    // appState.pendingOperation.operation = ""
+                    case keyCodeToCharMap["1"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "1"
+                            )
+                            return
+                        }
+                        break
+                    case keyCodeToCharMap["2"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "2"
+                            )
+                            return
+                        }
+                        break
+                    case keyCodeToCharMap["3"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "3"
+                            )
+                            return
+                        }
+                        break
+                    //TODO change to current focused app and add in for g$
                     case keyCodeToCharMap["4"]:
-                        // appState.pendingOperation.operation.append("4")
                         guard event.modifierFlags.contains(.shift) else {
-                            //TODO: Add to counter operation
+                            if event.modifierFlags.rawValue == 256 {
+                                appState.mode = .normal(
+                                    currentPendingOperation: (currentPendingNormalOperation ?? "")
+                                        + "4"
+                                )
+                            }
+                            //NOTE: pendingOperations (eg. not yet executed operations) will use
+                            //return instead of break as after the break we should record the execution
                             return
                         }
                         //"$" operator
-                        guard let currentCGPoint = getCurrentMouseLocation() else {
-                            debug("Could not retrieve current mouse location for operation '4")
-                            break
-                        }
-                        guard let currentScreenSize = getCurrentScreenSize() else {
-                            debug("Could not retrieve current screen size for operation '4")
-                            break
-                        }
                         moveMouseByExactCoordinatesOnCurrentScreen(
                             x: currentScreenSize.width - appState.gridInset, y: currentCGPoint.y)
-                    // appState.pendingOperation.operation = ""
+                        appState.mode = .normal(
+                            currentPendingOperation: nil
+                        )
+                        break
+                    case keyCodeToCharMap["5"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "5"
+                            )
+                            return
+                        }
+                        break
+                    case keyCodeToCharMap["6"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "6"
+                            )
+                            return
+                        }
+                        break
+                    case keyCodeToCharMap["7"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "7"
+                            )
+                            return
+                        }
+                        break
+                    case keyCodeToCharMap["8"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "8"
+                            )
+                            return
+                        }
+                        break
+                    case keyCodeToCharMap["9"]:
+                        if event.modifierFlags.rawValue == 256 {
+                            appState.mode = .normal(
+                                currentPendingOperation: (currentPendingNormalOperation ?? "") + "9"
+                            )
+                            return
+                        }
+                        break
                     default: break
                     }
                 case .find:
@@ -254,11 +362,13 @@ struct NeoMouse: App {
                     case keyCodeToCharMap["e"]:
                         guard event.modifierFlags.contains(.command) else {
                             return NeoMouse.executeFindModeOperation(
-                                event: event, appState: appState)
+                                event: event, appState: appState,
+                                currentScreenSize:
+                                    currentScreenSize)
                         }
-                        debug(
-                            "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
-                        )
+                        // debug(
+                        //     "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
+                        // )
                         appState.mode = .disabled
                         GridOverlay.shared.hideGrid()
                         ToastManager.shared.show("NeoMouse Deactivated")
@@ -281,13 +391,15 @@ struct NeoMouse: App {
                     //
                     case keyCodeToCharMap["Esc"]:
                         NeoMouse.exitFindMode(appState: appState)
+                        break
                     default:
-                        NeoMouse.executeFindModeOperation(event: event, appState: appState)
+                        NeoMouse.executeFindModeOperation(
+                            event: event, appState: appState, currentScreenSize: currentScreenSize)
                         break
                     }
                 default:
                     debug(
-                        "Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode), should not happen"
+                        "Should not happen: Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode)"
                     )
                     break
                 }
@@ -311,15 +423,18 @@ struct NeoMouse: App {
         ToastManager.shared.show(
             "Normal Mode")
     }
-    private static func executeFindModeOperation(event: NSEvent, appState: NeoMouseState) {
+    private static func executeFindModeOperation(
+        event: NSEvent, appState: NeoMouseState,
+        currentScreenSize: CGSize
+    ) {
         debug(
-            "isModifiedFlagEmpty: \(event.modifierFlags.isEmpty) modifier: \(event.modifierFlags), mode:\(appState.mode), keyCode:\(event.keyCode)"
+            "modifier: \(event.modifierFlags.rawValue), mode:\(appState.mode), keyCode:\(event.keyCode)"
         )
         guard case .find = appState.mode, event.modifierFlags.rawValue == 256 else {
+            debug(
+                "Cannot executeFindModeOperation as mode is \(appState.mode) or \(event.modifierFlags.rawValue) != 256"
+            )
             return
-                debug(
-                    "Cannot executeFindModeOperation as mode is \(appState.mode) or \(event.modifierFlags.rawValue) != 256"
-                )
         }
         //First get the convert of the keyCode to its equivalent character (as String)
         let keyCodeAsChar: String? = keyCodeToCharMap.first(where: {
@@ -405,12 +520,6 @@ struct NeoMouse: App {
                 "\(keyCodeAsChar) is in innerGridDivisionCharactersIndex: \(innerGridDivisionCharactersIndex)"
             )
 
-            guard let currentScreenSize = getCurrentScreenSize() else {
-                return
-                    debug(
-                        "Unable to getCurrentScreenSize within innerGridDivisionCharactersIndex operation"
-                    )
-            }
             let updatedFindState = FindState(
                 pendingGridDivisionIndex: findState.pendingGridDivisionIndex,
                 pendingInnerGridDivisionIndex: innerGridDivisionCharactersIndex
