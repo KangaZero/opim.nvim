@@ -37,7 +37,7 @@ class NeoMouseState: ObservableObject {
     let rangeY: CGFloat = 20
     // let isIgnoresSafeArea = true
     let isAlwaysShowInnerGridCharacters = true
-    let isClampCursorToScreen = true
+    let isClampCursorToCurrentScreen = false
 }
 
 @main
@@ -56,6 +56,7 @@ struct NeoMouse: App {
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
                 let _currentCGPoint = getCurrentMouseLocation()
+                let _allScreensBoundingRect = getAllScreensBoundingRect()
                 let _currentNSPoint = NSEvent.mouseLocation
                 let _currentScreenSize = getCurrentScreenSize()
                 let _currentScreen = NSScreen.screens.first(where: {
@@ -80,7 +81,7 @@ struct NeoMouse: App {
                     return
                 }
                 debug(
-                    "allScreensRect: \(String(describing:getAllScreensBoundingRect)) NSScreen = \(String(describing: NSScreen.screens))"
+                    "allScreensRect: \(String(describing: _allScreensBoundingRect)) NSScreen = \(String(describing: NSScreen.screens))"
                 )
                 // currentCGPoint is in global CG space (top-left of primary = origin).
                 // moveMouseByExactCoordinatesOnCurrentScreen expects screen-local CG coords
@@ -175,8 +176,8 @@ struct NeoMouse: App {
                         // )
                         moveMouseRelatively(
                             x: -appState.rangeX * operationCount, y: 0,
-                            enableClamp:
-                                appState.isClampCursorToScreen)
+                            enableClampToCurrentScreen:
+                                appState.isClampCursorToCurrentScreen)
                         appState.mode = .normal(
                             currentPendingOperation: nil
                         )
@@ -186,8 +187,8 @@ struct NeoMouse: App {
                         guard event.modifierFlags.rawValue == 256 else { return }
                         moveMouseRelatively(
                             x: 0, y: appState.rangeY * operationCount,
-                            enableClamp:
-                                appState.isClampCursorToScreen)
+                            enableClampToCurrentScreen:
+                                appState.isClampCursorToCurrentScreen)
                         appState.mode = .normal(
                             currentPendingOperation: nil
                         )
@@ -196,8 +197,8 @@ struct NeoMouse: App {
                         guard event.modifierFlags.rawValue == 256 else { return }
                         moveMouseRelatively(
                             x: 0, y: -appState.rangeY * operationCount,
-                            enableClamp:
-                                appState.isClampCursorToScreen)
+                            enableClampToCurrentScreen:
+                                appState.isClampCursorToCurrentScreen)
                         appState.mode = .normal(
                             currentPendingOperation: nil
                         )
@@ -209,8 +210,8 @@ struct NeoMouse: App {
                         // )
                         moveMouseRelatively(
                             x: appState.rangeX * operationCount, y: 0,
-                            enableClamp:
-                                appState.isClampCursorToScreen)
+                            enableClampToCurrentScreen:
+                                appState.isClampCursorToCurrentScreen)
                         appState.mode = .normal(
                             currentPendingOperation: nil
                         )

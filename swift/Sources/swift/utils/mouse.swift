@@ -22,7 +22,7 @@ func getCurrentMouseLocation() -> CGPoint? {
     return CGEvent(source: nil)?.location
 }
 
-func moveMouseRelatively(x: CGFloat, y: CGFloat, enableClamp: Bool) {
+func moveMouseRelatively(x: CGFloat, y: CGFloat, enableClampToCurrentScreen: Bool) {
     let current = NSEvent.mouseLocation  // AppKit coords (origin bottom-left)
 
     guard let currentScreen = NSScreen.screens.first(where: { $0.frame.contains(current) }) else {
@@ -34,10 +34,15 @@ func moveMouseRelatively(x: CGFloat, y: CGFloat, enableClamp: Bool) {
     let newX = current.x + x
     let newY = current.y - y  // stay in AppKit space, subtract because Y is flipped
 
+    let allScreensRect = getAllScreensBoundingRect()
     let clampedX =
-        enableClamp ? max(currentScreen.frame.minX, min(newX, currentScreen.frame.maxX)) : newX
+        enableClampToCurrentScreen
+        ? max(currentScreen.frame.minX, min(newX, currentScreen.frame.maxX))
+        : max(allScreensRect.minX, min(newX, allScreensRect.maxX))
     let clampedY =
-        enableClamp ? max(currentScreen.frame.minY, min(newY, currentScreen.frame.maxY)) : newY
+        enableClampToCurrentScreen
+        ? max(currentScreen.frame.minY, min(newY, currentScreen.frame.maxY))
+        : max(allScreensRect.minY, min(newY, allScreensRect.maxY))
 
     // convert AppKit -> CG only at the last moment for CGWarp
     let cgY = primaryScreen.frame.height - clampedY
