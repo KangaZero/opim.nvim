@@ -8,7 +8,7 @@ struct FindState {
 
 struct VisualState {
     var startPos: CGPoint? = nil
-    var endPost: CGPoint? = nil
+    var endPos: CGPoint? = nil
 }
 
 // MARK: - Mode
@@ -16,17 +16,10 @@ enum Mode {
     case disabled
     case normal(
         currentPendingOperation: String?,
-        normalOperationsExecuted: [String]?
     )
     case find(
         currentPendingOperation: String?,
         findState: FindState,
-        findOperationsExecuted: [FindOperation]?
-    )
-    case visual(
-        currentPendingOperation: String?,
-        findState: FindState,
-        visualOperationsExecuted: [FindOperation]?
     )
     // case visualFind
     case command(

@@ -16,6 +16,9 @@ class NeoMouseState: ObservableObject {
     @Published var mouseX: CGFloat = 0
     @Published var mouseY: CGFloat = 0
     @Published var gridInset: CGFloat = 10
+    @Published var isVisual: Bool = false
+    @Published var startingVisualState: VisualState? = nil
+    @Published var endingVisualState: VisualState? = nil
 
     let commands: [String] = ["numbers, relativenumbers"]
     //WARNING: Until a good dynamic solution is found, do not allow these 2 to be mutable, could be a headache as divisionCharacters may
@@ -57,7 +60,7 @@ struct NeoMouse: App {
         let appState = NeoMouse.sharedState
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
-                //Need this as to allow other program shortcuts to work
+                // //Need this as to allow other program shortcuts to work
                 switch appState.mode {
                 case .disabled:
                     switch event.keyCode {
@@ -68,17 +71,24 @@ struct NeoMouse: App {
                         )
                         appState.mode = .normal(
                             currentPendingOperation: nil,
-                            //TODO: NICE TO HAVE use previous session's
-                            normalOperationsExecuted: nil
                         )
                         ToastManager.shared.show(
-                            "Normal Mode Activated")
+                            "Neomouse Activated - Normal Mode")
                         return
                     default:
                         return
                     }
-                case .normal, .visual:
+                case .normal(let currentPendingNormalOperation):
                     switch event.keyCode {
+                    case keyCodeToCharMap["e"]:
+                        guard event.modifierFlags.contains(.command) else { return }
+                        debug(
+                            "modifierFlags:true, modifier: \(event.modifierFlags), mode:\(appState.mode), key:e, keyCode:\(event.keyCode)"
+                        )
+                        appState.mode = .disabled
+                        ToastManager.shared.show(
+                            "Neomouse Deactivated")
+                        return
                     //TODO: Add "$", "^ : where it will go to the most left/right of the current
                     //focused window", "g$" for most right, hjkl, counters,
                     case keyCodeToCharMap["f"]:
@@ -94,12 +104,12 @@ struct NeoMouse: App {
                         )
                         appState.mode = .find(
                             currentPendingOperation: nil,
-                            findState: FindState(),
-                            findOperationsExecuted: nil)
+                            findState: FindState()
+                        )
                         GridOverlay.shared.passAppState(state: appState)
                         GridOverlay.shared.showGrid()
                         ToastManager.shared.show(
-                            "Find Mode On")
+                            "Find Mode")
                     // INFO: Here starts VIM-like motions on the cursor
                     case keyCodeToCharMap["h"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
@@ -110,7 +120,7 @@ struct NeoMouse: App {
                         let operationCount: CGFloat = 1
                         appState.mode = .normal(
                             currentPendingOperation: "\(operationCount)h",
-                            normalOperationsExecuted: nil)
+                        )
                         moveMouseRelatively(
                             x: -appState.rangeX * operationCount, y: 0,
                             enableClamp:
@@ -122,14 +132,18 @@ struct NeoMouse: App {
                             "modifierFlags:false, isNeomouseMode:true, key:j, keyCode:\(event.keyCode)"
                         )
                         let operationCount: CGFloat = 1
-                        // appState.pendingOperation.operation.append("j")
+                        moveMouseRelatively(
+                            x: 0, y: appState.rangeY * operationCount,
+                            enableClamp:
+                                appState.isClampCursorToScreen)
+                    case keyCodeToCharMap["k"]:
+                        guard event.modifierFlags.rawValue == 256 else { return }
+                        let operationCount: CGFloat = 1
                         moveMouseRelatively(
                             x: 0, y: -appState.rangeY * operationCount,
                             enableClamp:
                                 appState.isClampCursorToScreen)
-                    // appState.pendingOperation.operation = ""
-                    case keyCodeToCharMap["k"]:
-                        guard event.modifierFlags.rawValue == 256 else { return }
+
                         debug(
                             "modifierFlags:false, isNeomouseMode:true, key:k, keyCode:\(event.keyCode)"
                         )
@@ -140,8 +154,56 @@ struct NeoMouse: App {
                         debug(
                             "modifierFlags:false, isNeomouseMode:true, key:l, keyCode:\(event.keyCode)"
                         )
-                    // appState.pendingOperation.operation.append("l")
-                    // appState.pendingOperation.operation = ""
+                        //TODO check that if the operation except the lastIndex are only nums
+                        let operationCount: CGFloat = 1
+                        appState.mode = .normal(
+                            currentPendingOperation: "\(operationCount)h",
+                        )
+                        moveMouseRelatively(
+                            x: appState.rangeX * operationCount, y: 0,
+                            enableClamp:
+                                appState.isClampCursorToScreen)
+
+                    case keyCodeToCharMap["g"]:
+                        debug(
+                            "modifierFlags:\(event.modifierFlags.rawValue), isNeomouseMode:true, key:g, keyCode:\(event.keyCode)"
+                        )
+                        if event.modifierFlags.contains(.shift)
+                            || event.modifierFlags.contains(.capsLock)
+                        {
+                            guard let currentCGPoint = getCurrentMouseLocation(),
+                                let
+                                    currentScreenSize = getCurrentScreenSize()
+                            else {
+                                debug(
+                                    "Could not getCurrentMouseLocation and/or getCurrentScreenSize for operation 'G"
+                                )
+                                return
+                            }
+                            moveMouseByExactCoordinatesOnCurrentScreen(
+                                x: currentCGPoint.x,
+                                y: currentScreenSize.height - appState.gridInset)
+                            break
+                        }
+                        guard event.modifierFlags.rawValue == 256 else { return }
+
+                        appState.mode = .normal(
+                            currentPendingOperation: (currentPendingNormalOperation ?? "") + "g",
+                        )
+                        // "g" instead of "gg" as the following "g" is only appended after current MainActor event
+                        if currentPendingNormalOperation == "g" {
+                            guard let currentCGPoint = getCurrentMouseLocation() else {
+                                debug("Could not retrieve current mouse location for operation 'gg")
+                                return
+                            }
+                            moveMouseByExactCoordinatesOnCurrentScreen(
+                                x: currentCGPoint.x, y: 0 + appState.gridInset)
+                            appState.mode = .normal(
+                                currentPendingOperation: nil
+                            )
+                            break
+                        }
+
                     case keyCodeToCharMap["0"]:
                         guard event.modifierFlags.rawValue == 256 else { return }
                         debug(
@@ -150,10 +212,7 @@ struct NeoMouse: App {
                         // appState.pendingOperation.operation.append("0")
                         //Not a count-based operation, so execute "go to start of current
                         //x-axis-line (Similar to Vim's go to start of line)
-                        guard case .normal(let currentPendingOperation, _) = appState.mode else {
-                            return
-                        }
-                        let currentPendingOperationCount = currentPendingOperation?.count
+                        let currentPendingOperationCount = currentPendingNormalOperation?.count
                         guard
                             currentPendingOperationCount == nil || currentPendingOperationCount == 1
                         else {
@@ -203,6 +262,7 @@ struct NeoMouse: App {
                         appState.mode = .disabled
                         GridOverlay.shared.hideGrid()
                         ToastManager.shared.show("NeoMouse Deactivated")
+                        return
 
                     // case keyCodeToCharMap["f"]:
                     //     guard event.modifierFlags.isEmpty else { return }
@@ -226,6 +286,9 @@ struct NeoMouse: App {
                         break
                     }
                 default:
+                    debug(
+                        "Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode), should not happen"
+                    )
                     break
                 }
             }
@@ -242,10 +305,11 @@ struct NeoMouse: App {
         Settings { EmptyView() }
     }
     private static func exitFindMode(appState: NeoMouseState) {
-        appState.mode = .normal(currentPendingOperation: nil, normalOperationsExecuted: nil)
+        //TODO: NICE TO HAVE use previous session's
+        appState.mode = .normal(currentPendingOperation: nil)
         GridOverlay.shared.hideGrid()
         ToastManager.shared.show(
-            "Find Mode Off")
+            "Normal Mode")
     }
     private static func executeFindModeOperation(event: NSEvent, appState: NeoMouseState) {
         debug(
@@ -264,12 +328,12 @@ struct NeoMouse: App {
         // debug(
         //     "executeFindModeOperation: keyCode: \(event.keyCode), keyCodeAsChar: \(keyCodeAsChar)")
         guard let keyCodeAsChar = keyCodeAsChar else {
-            debug("Not a recognized keyCode, cannot find character (key)")
+            debug("Not a recognized keyCode, cannot find character for keyCode:\(event.keyCode)")
             return
         }
 
         guard
-            case .find(let currentPendingOperation, let findState, let findOperationsExecuted) =
+            case .find(let currentPendingOperation, let findState) =
                 appState.mode
         else {
             return
@@ -278,8 +342,6 @@ struct NeoMouse: App {
         // appState.mode = .find(
         //     currentPendingOperation: (currentPendingOperation ?? "") + keyCodeAsChar,
         //     findState: findState,
-        //     findOperationsExecuted:
-        //         findOperationsExecuted
         // )
         // First keypress
         if findState.pendingGridDivisionIndex == nil {
@@ -299,6 +361,12 @@ struct NeoMouse: App {
                     "\(keyCodeAsChar) is not part of findModeGridDivisionCharacters"
                 )
             }
+            guard gridDivisionCharactersIndex < (appState.gridDivisions * appState.gridDivisions)
+            else {
+                return debug(
+                    "\(keyCodeAsChar)'s gridDivisionCharactersIndex: \(gridDivisionCharactersIndex) is greater/equal \((appState.gridDivisions * appState.gridDivisions))"
+                )
+            }
             debug(
                 "\(keyCodeAsChar) is in gridDivisionCharactersIndex: \(gridDivisionCharactersIndex)"
             )
@@ -309,7 +377,6 @@ struct NeoMouse: App {
             appState.mode = .find(
                 currentPendingOperation: (currentPendingOperation ?? "") + keyCodeAsChar,
                 findState: updatedFindState,
-                findOperationsExecuted: findOperationsExecuted
             )
             // findState.pendingGridDivisionIndex =
             // gridDivisionCharactersIndex
@@ -324,6 +391,14 @@ struct NeoMouse: App {
             else {
                 return debug(
                     "\(keyCodeAsChar) is not part of findModeInnerGridDivisionCharacters"
+                )
+            }
+            guard
+                innerGridDivisionCharactersIndex
+                    < (appState.innerGridDivisions * appState.innerGridDivisions)
+            else {
+                return debug(
+                    "\(keyCodeAsChar)'s innerGridDivisionCharactersIndex: \(innerGridDivisionCharactersIndex) is greater/equal to \((appState.innerGridDivisions * appState.innerGridDivisions))"
                 )
             }
             debug(
@@ -344,7 +419,6 @@ struct NeoMouse: App {
             appState.mode = .find(
                 currentPendingOperation: (currentPendingOperation ?? "") + keyCodeAsChar,
                 findState: updatedFindState,
-                findOperationsExecuted: findOperationsExecuted
             )
             // findState.pendingInnerGridDivisionIndex =
             //     innerGridDivisionCharactersIndex
@@ -527,7 +601,10 @@ struct GridOverlayView: View {
                     let cellHeight = (endY - startY) / CGFloat(state.gridDivisions)
                     let innerCellWidth = cellWidth / CGFloat(state.innerGridDivisions)
                     let innerCellHeight = cellHeight / CGFloat(state.innerGridDivisions)
-                    guard case .find(_, let findState, _) = state.mode else { return }
+                    guard case .find(_, let findState) = state.mode else {
+                        return
+                            debug("Should not happen: not in find mode within GridOverlayView")
+                    }
                     if let outerIndex = findState.pendingGridDivisionIndex {
                         // Narrow to selected outer cell after first keypress
                         let selectedCol = outerIndex % state.gridDivisions
