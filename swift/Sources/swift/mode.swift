@@ -6,7 +6,7 @@ struct FindState {
     var pendingInnerGridDivisionIndex: Int? = nil
 }
 
-struct VisualState {
+struct VisualState: Codable {
     var startPos: CGPoint? = nil
     var endPos: CGPoint? = nil
 }
