@@ -117,30 +117,109 @@ xattr -dr com.apple.quarantine ./neomouse
 sudo install -m 755 ./neomouse /usr/local/bin/neomouse
 ```
 
-## Build from source
+## Development
 
-If you'd rather build it yourself instead of using one of the install paths above. Requires Swift 6.3+ (`swift --version`).
+Requires Swift 6.3+ (`swift --version`). No Xcode required for building, but `Testing.framework` resolution under Command Line Tools needs the rpath flags shown below — the pre-commit hook injects them automatically.
+
+### Setup
 
 ```sh
 git clone https://github.com/KangaZero/neomouse
 cd neomouse
 
-# Debug build
-swift build
+# One-time per clone: point this repo's git hooks at .githooks/
+scripts/setup-hooks.sh
+```
 
-# Release build
-swift build -c release
+`setup-hooks.sh` sets `core.hooksPath=.githooks`. The pre-commit hook then runs `swift format lint --strict` on staged Swift files and `swift test` before each commit. The same checks run in CI on every push to `main` and every PR.
 
-# Run
+### Build
+
+```sh
+swift build                # debug build → .build/debug/neomouse
+swift build -c release     # release build → .build/release/neomouse
+```
+
+### Run
+
+```sh
+# Debug build, foreground:
+swift run
+
+# Release build:
 swift run -c release
-# or
+
+# Or invoke the binary directly:
+.build/debug/neomouse
 .build/release/neomouse
 ```
 
-## Project structure
+macOS will prompt for Accessibility permissions on the first launch from each build path. Allow `neomouse` in **System Settings → Privacy & Security → Accessibility**, then relaunch.
+
+### Test
+
+```sh
+DEV_DIR="$(xcode-select -p)"
+swift test \
+    -Xswiftc -F -Xswiftc "$DEV_DIR/Library/Developer/Frameworks" \
+    -Xlinker -rpath -Xlinker "$DEV_DIR/Library/Developer/Frameworks" \
+    -Xlinker -rpath -Xlinker "$DEV_DIR/Library/Developer/usr/lib"
+```
+
+The rpath flags let `swift test` resolve `Testing.framework` + `lib_TestingInterop.dylib` at runtime under Command Line Tools (full Xcode finds them itself; the flags are harmless either way). The pre-commit hook bakes this in for you.
+
+### Debug logging
+
+`debug(...)` in `Sources/neomouse/utils/debug.swift` writes to two independent sinks: **stdout** and **a log file**. Each is gated separately.
+
+**Stdout** is enabled when either:
+
+- The binary was built in debug configuration (`swift build` / `swift run`), so `#if DEBUG` is set automatically, **or**
+- The runtime env var `DEBUG` is set to a non-empty, non-falsy value (anything except `0` / `false`).
+
+```sh
+DEBUG=1 neomouse              # installed via brew/nix
+DEBUG=1 swift run -c release  # locally built release binary
+```
+
+Debug builds always print to stdout regardless of the env var.
+
+**File logging** is enabled when:
+
+- The env var `LOG` is set to a non-empty, non-falsy value.
+- `LOG_LOCATION` (optional) sets the destination. Default: `/tmp/neomouse/logs/neomouse.log`.
+  - If `LOG_LOCATION` ends in `.log`, it's treated as a full file path.
+  - Otherwise it's treated as a directory and `neomouse.log` is appended.
+  - The parent directory is created if missing. The file is opened append-only.
+
+```sh
+LOG=1 neomouse                                         # → /tmp/neomouse/logs/neomouse.log
+LOG=1 LOG_LOCATION=~/Library/Logs/neomouse neomouse    # → ~/Library/Logs/neomouse/neomouse.log
+LOG=1 LOG_LOCATION=/tmp/x.log neomouse                 # → /tmp/x.log
+DEBUG=1 LOG=1 neomouse                                 # both stdout and file
+```
+
+The env-var checks are evaluated once at module load, so per-`debug()` overhead is a `Bool` check plus formatting. File writes are serialized on a background queue.
+
+### Lint / format
+
+```sh
+swift format lint --strict --recursive Sources Tests   # check only
+swift format -i --recursive Sources Tests              # auto-fix in place
+```
+
+Config lives in `.swift-format` at the repo root: 4-space indent, 120-line limit, `NoAssignmentInExpressions` disabled (the codebase intentionally uses `return state = ...`).
+
+### Project layout
 
 ```
 Package.swift                — SwiftPM manifest
+.swift-format                — formatter / linter config
+.githooks/pre-commit         — lint staged Swift + run tests
+.github/workflows/ci.yml     — CI: lint + build + test on macos-15 (Swift 6.3 via swiftly)
+scripts/release.sh           — cut a release (binary + tarball + tag + GitHub Release + brew tap bump + flake bump)
+scripts/setup-hooks.sh       — one-time hook activation
+
 Sources/neomouse/            — app sources
   swift.swift                — @main entry point, event monitors, app state
   mode.swift                 — mode definitions (normal, visual, find, …)
@@ -148,19 +227,12 @@ Sources/neomouse/            — app sources
   undotree.swift             — undo/redo state
   ui/                        — SwiftUI overlays (command line, keycast)
   utils/                     — helpers (mouse, screen, window, gestures, …)
+    debug.swift              — gated debug logger (see Debug logging above)
+    hjkl.swift               — pure direction → CGVector helper, unit-tested
   database/                  — GRDB session store
-Tests/neomouseTests/         — unit tests
+
+Tests/neomouseTests/         — swift-testing (`import Testing`) suites
 ```
-
-## Contributing
-
-After cloning, enable the repo's git hooks (one-time, per clone):
-
-```sh
-scripts/setup-hooks.sh
-```
-
-This points `core.hooksPath` at `.githooks/`, so the pre-commit hook runs `swift format lint` on staged Swift files and `swift test` before each commit. The same checks run in CI on every push to `main` and every PR.
 
 ## Status
 
