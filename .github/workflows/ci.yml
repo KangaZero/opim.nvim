@@ -17,6 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The default Xcode on macos-15 may ship an older Swift. Package.swift
+      # declares swift-tools-version 6.3, so we pin to the newest stable Xcode
+      # the runner has installed.
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Show toolchain
         run: |
           sw_vers
