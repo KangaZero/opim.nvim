@@ -1,51 +1,21 @@
-# Rust artifacts
-target/
-
-# Node artifacts
-build/
-prebuilds/
-node_modules/
-
-# Swift artifacts
+# Swift / SwiftPM
 .build/
+.swiftpm/
+Packages/
+xcuserdata/
+DerivedData/
+*.xcodeproj/
+.swiftpm/configuration/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 
-# Go artifacts
-_obj/
+# macOS
+.DS_Store
+.netrc
 
-# Python artifacts
-.venv/
-dist/
-*.egg-info
-*.whl
+# Editor swap / temp
+*.swp
+*.swo
+*~
 
-# C artifacts
-*.a
-*.so
-*.so.*
-*.dylib
-*.dll
-*.pc
-*.exp
-*.lib
-
-# Zig artifacts
-.zig-cache/
-zig-cache/
-zig-out/
-
-# Example dirs
-/examples/*/
-
-# Grammar volatiles
-*.wasm
-*.obj
-*.o
-
-# Archives
-*.tar.gz
-*.tgz
-*.zip
-*.jar
-
-# Debug Log
-opim.log
+# Logs
+*.log

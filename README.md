@@ -1,4 +1,4 @@
-# neowarpd
+# neomouse
 
 A keyboard-driven mouse control daemon for macOS, inspired by [warpd](https://github.com/rvaiya/warpd) but built around true Vim motions.
 
@@ -6,43 +6,60 @@ The goal is to feel like you never left Vim — mouse control that maps naturall
 
 ## How it works
 
-`neowarpd` installs a system-wide `CGEventTap` that intercepts keyboard events and translates Vim motions into mouse movements, without the key presses reaching other applications.
+`neomouse` is a SwiftUI macOS app that installs a global event monitor to intercept keyboard events and translate Vim motions into mouse movements and gestures. It uses [GRDB](https://github.com/groue/GRDB.swift) for local session state.
 
-## Building
+## Requirements
+
+- macOS 13 (Ventura) or later
+- Swift 6.3+ toolchain (Xcode 16 or `swift --version` ≥ 6.3)
+- Accessibility permissions (granted on first run)
+
+## Build
 
 ```sh
-# Debug build (enables debug logging)
-gcc -DDEBUG main.c -framework ApplicationServices -o mouse
+# Debug build
+swift build
 
 # Release build
-gcc main.c -framework ApplicationServices -o mouse
+swift build -c release
 ```
 
-> macOS will prompt for Accessibility permissions on first run. Grant them in **System Settings → Privacy & Security → Accessibility**.
+The release binary is written to `.build/release/neomouse`.
 
-## Usage
+## Run
 
 ```sh
-./mouse
+swift run -c release
+# or directly:
+.build/release/neomouse
 ```
 
-Once running, use Vim motions to move the mouse:
+> macOS will prompt for Accessibility permissions on first launch. Grant them in **System Settings → Privacy & Security → Accessibility**, then relaunch.
 
-| Key | Action          |
-|-----|-----------------|
-| `h` | Move left       |
-| `j` | Move down       |
-| `k` | Move up         |
-| `l` | Move right      |
+## Install (optional)
+
+Copy the release binary somewhere on your `PATH`:
+
+```sh
+swift build -c release
+cp .build/release/neomouse /usr/local/bin/
+```
 
 ## Project structure
 
 ```
-main.c          — entry point, event tap setup and callback
-main.h          — key code definitions and debug flag
-utils/debug.c   — timestamped debug logging (compile with -DDEBUG to enable)
+Package.swift                — SwiftPM manifest
+Sources/neomouse/            — app sources
+  swift.swift                — @main entry point, event monitors, app state
+  mode.swift                 — mode definitions (normal, visual, find, …)
+  operation.swift            — keymap → operation dispatch
+  undotree.swift             — undo/redo state
+  ui/                        — SwiftUI overlays (command line, keycast)
+  utils/                     — helpers (mouse, screen, window, gestures, …)
+  database/                  — GRDB session store
+Tests/neomouseTests/         — unit tests
 ```
 
-## Debugging
+## Status
 
-The `debug()` function in `utils/debug.c` is a no-op unless `DEBUG` is defined. Either compile with `-DDEBUG` or add `#define DEBUG` in `main.h` (already present for dev builds).
+Active development. See [TODO.md](TODO.md) for the roadmap.

@@ -1,6 +1,6 @@
 import Testing
 
-@testable import swift
+@testable import neomouse
 
 @Test("sendNotification runs without crashing") func testSendNotification() {
     sendNotification()
