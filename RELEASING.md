@@ -42,8 +42,9 @@ The script accepts either `v0.1.0` or bare `0.1.0` — it normalizes.
 4. **Package** — `dist/neomouse-<VERSION>-macos-arm64.tar.gz` plus a `.sha256` file.
 5. **Tag** — annotated tag pushed to `origin`.
 6. **Release** — `gh release create` with the archive + checksum attached. Release notes are auto-generated from `git log <prev-tag>..<this-tag>`.
+7. **Homebrew tap bump** — clones `KangaZero/homebrew-neomouse`, rewrites `Formula/neomouse.rb`'s `url` / `sha256` / `version` to the new release, commits as `neomouse <VERSION>`, and pushes. Skip with `SKIP_HOMEBREW=1 scripts/release.sh ...`.
 
-Order matters: local artifacts and the tag are produced before anything is pushed remotely, so a failure in the build won't leave you with a dangling tag on GitHub.
+Order matters: local artifacts and the tag are produced before anything is pushed remotely, so a failure in the build won't leave you with a dangling tag on GitHub. The Homebrew bump runs last so it only fires when the release assets are confirmed published.
 
 ## Recovering from a failed release
 
@@ -52,6 +53,7 @@ Order matters: local artifacts and the tag are produced before anything is pushe
 | Preconditions / build / sign / package | Fix the issue and rerun. Nothing on the remote was changed. |
 | After `git push origin <tag>` but before `gh release create` | Delete and rerun: `git tag -d <tag> && git push origin :<tag>` then rerun the script. |
 | Release created but assets wrong | `gh release upload <tag> <file> --clobber` to replace, or `gh release delete <tag>` and rerun. |
+| Release created but Homebrew bump failed | The script can't rerun cleanly because the tag now exists. Fix the tap manually: `git clone git@github.com:KangaZero/homebrew-neomouse`, edit `Formula/neomouse.rb` (url, sha256, version), commit and push. Or rerun the script with `SKIP_HOMEBREW=1` after deleting the tag, but that's heavier than just patching the formula. |
 
 ## Limitations & future work
 

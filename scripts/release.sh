@@ -3,7 +3,11 @@
 #
 # Usage: scripts/release.sh vX.Y.Z
 #
-# Builds, ad-hoc signs, packages, tags, pushes, and publishes a GitHub Release.
+# Builds, ad-hoc signs, packages, tags, pushes, and publishes a GitHub Release,
+# then bumps Formula/neomouse.rb in KangaZero/homebrew-neomouse to the new
+# url/sha256/version and pushes that update.
+#
+# Set SKIP_HOMEBREW=1 to skip the Homebrew tap bump.
 
 set -euo pipefail
 
@@ -132,5 +136,52 @@ gh release create "$VERSION" \
   "$ARCHIVE" "$ARCHIVE.sha256"
 
 URL="$(gh release view "$VERSION" --json url -q .url)"
+
+# ---------- bump homebrew tap ----------
+
+if [[ "${SKIP_HOMEBREW:-}" == "1" ]]; then
+    step "Skipping Homebrew tap bump (SKIP_HOMEBREW=1)"
+else
+    step "Bumping Homebrew formula in KangaZero/homebrew-neomouse"
+
+    HASH="$(awk '{print $1}' "$ARCHIVE.sha256")"
+    ASSET_URL="https://github.com/KangaZero/neomouse/releases/download/${VERSION}/${ARCHIVE_NAME}"
+    BARE_VERSION="${VERSION#v}"
+
+    TAP_DIR="$(mktemp -d)"
+    # Append cleanup to the existing trap (which already removes NOTES_FILE).
+    trap 'rm -f "$NOTES_FILE"; rm -rf "$TAP_DIR"' EXIT
+
+    git clone --quiet --depth 1 \
+        git@github.com:KangaZero/homebrew-neomouse.git "$TAP_DIR"
+
+    FORMULA="$TAP_DIR/Formula/neomouse.rb"
+    [[ -f "$FORMULA" ]] || fail "Formula not found at $FORMULA in cloned tap"
+
+    # BSD sed (macOS) — anchor each replacement to the field it should match.
+    sed -i.bak \
+        -e "s|^  url \".*\"|  url \"$ASSET_URL\"|" \
+        -e "s|^  sha256 \".*\"|  sha256 \"$HASH\"|" \
+        -e "s|^  version \".*\"|  version \"$BARE_VERSION\"|" \
+        "$FORMULA"
+    rm -f "$FORMULA.bak"
+
+    # Sanity check: ensure the new values actually appear.
+    grep -q "$ASSET_URL" "$FORMULA"   || fail "Formula url did not update"
+    grep -q "$HASH"      "$FORMULA"   || fail "Formula sha256 did not update"
+    grep -q "$BARE_VERSION" "$FORMULA" || fail "Formula version did not update"
+
+    if git -C "$TAP_DIR" diff --quiet -- Formula/neomouse.rb; then
+        echo "Formula already at $VERSION; nothing to push."
+    else
+        git -C "$TAP_DIR" add Formula/neomouse.rb
+        git -C "$TAP_DIR" -c user.email="$(git config user.email)" \
+                         -c user.name="$(git config user.name)" \
+            commit -q -m "neomouse $VERSION"
+        git -C "$TAP_DIR" push --quiet origin HEAD
+        echo "Pushed formula bump to homebrew-neomouse."
+    fi
+fi
+
 step "Done"
 echo "Release: $URL"
