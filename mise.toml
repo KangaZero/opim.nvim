@@ -1,0 +1,6 @@
+# Project-local tool versions, managed by mise (https://mise.jdx.dev/).
+# `mise install` (or auto_install on directory entry) pulls these into
+# ~/.local/share/mise/installs/ and activates them only inside this repo.
+
+[tools]
+just = "latest"

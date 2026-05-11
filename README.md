@@ -127,14 +127,20 @@ Requires Swift 6.3+ (`swift --version`). No Xcode required for building — Comm
 git clone https://github.com/KangaZero/neomouse
 cd neomouse
 
-# Install just (the command runner). Pick one:
-cargo install just      # via Rust toolchain
-brew install just       # via Homebrew
-# (or nix profile add nixpkgs#just)
-
 # One-time per clone: enable the repo's git hooks
 scripts/setup-hooks.sh
 ```
+
+The repo pins its dev tooling — currently just `just` itself — in `mise.toml`, so it stays out of your global environment. If you use [mise](https://mise.jdx.dev/) (recommended; install with `brew install mise` or `curl https://mise.run | sh`):
+
+```sh
+mise trust   # one-time, allow this repo's mise.toml to run
+mise install # fetches the pinned versions
+```
+
+mise installs `just` into `~/.local/share/mise/installs/just/<version>/` and only adds it to `PATH` while you're inside this repo (via the shell hook). Outside the repo, `just` is unavailable.
+
+If you don't use mise, install `just` however you prefer (`brew install just`, `cargo install just`, `nix profile add nixpkgs#just`).
 
 `setup-hooks.sh` sets `core.hooksPath=.githooks`. The pre-commit hook runs `swift format lint --strict` on staged Swift files and `swift test` before each commit. The same checks run in CI on every push to `main` and every PR.
 
@@ -226,6 +232,7 @@ The env-var checks are evaluated once at module load, so per-`debug()` overhead 
 ```
 Package.swift                — SwiftPM manifest
 justfile                     — developer commands (`just`)
+mise.toml                    — project-local dev tool versions (mise)
 .swift-format                — formatter / linter config
 .githooks/pre-commit         — lint staged Swift + run tests
 .github/workflows/ci.yml     — CI: lint + build + test on macos-15 (Swift 6.3 via swiftly)
