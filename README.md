@@ -119,7 +119,7 @@ sudo install -m 755 ./neomouse /usr/local/bin/neomouse
 
 ## Development
 
-Requires Swift 6.3+ (`swift --version`). No Xcode required for building, but `Testing.framework` resolution under Command Line Tools needs the rpath flags shown below — the pre-commit hook injects them automatically.
+Requires Swift 6.3+ (`swift --version`). No Xcode required for building — Command Line Tools is enough. `make` is the front door for every common task; underlying `swift` commands are documented below in case you want to invoke them directly.
 
 ### Setup
 
@@ -127,36 +127,48 @@ Requires Swift 6.3+ (`swift --version`). No Xcode required for building, but `Te
 git clone https://github.com/KangaZero/neomouse
 cd neomouse
 
-# One-time per clone: point this repo's git hooks at .githooks/
+# One-time per clone: enable the repo's git hooks
 scripts/setup-hooks.sh
 ```
 
-`setup-hooks.sh` sets `core.hooksPath=.githooks`. The pre-commit hook then runs `swift format lint --strict` on staged Swift files and `swift test` before each commit. The same checks run in CI on every push to `main` and every PR.
+`setup-hooks.sh` sets `core.hooksPath=.githooks`. The pre-commit hook runs `swift format lint --strict` on staged Swift files and `swift test` before each commit. The same checks run in CI on every push to `main` and every PR.
 
-### Build
-
-```sh
-swift build                # debug build → .build/debug/neomouse
-swift build -c release     # release build → .build/release/neomouse
-```
-
-### Run
+### `make` — the catch-all
 
 ```sh
-# Debug build, foreground:
-swift run
-
-# Release build:
-swift run -c release
-
-# Or invoke the binary directly:
-.build/debug/neomouse
-.build/release/neomouse
+make help          # list every target with a one-line description
+make               # same as make help
+make all           # catch-all: lint + test + release build (what CI runs)
 ```
 
-macOS will prompt for Accessibility permissions on the first launch from each build path. Allow `neomouse` in **System Settings → Privacy & Security → Accessibility**, then relaunch.
+Other targets:
 
-### Test
+| Target | Does |
+|---|---|
+| `make build` | Debug build → `.build/debug/neomouse` |
+| `make release` | Release build → `.build/release/neomouse` |
+| `make run` | Build and run the debug binary |
+| `make run-release` | Build and run the release binary |
+| `make test` | Run the test suite |
+| `make lint` | `swift format lint --strict` on `Sources/` and `Tests/` |
+| `make fmt` | `swift format -i` to auto-format in place |
+| `make check` | `lint + test` (what the pre-commit hook runs) |
+| `make clean` | `swift package clean` and remove `.build/` |
+
+macOS will prompt for Accessibility permissions the first time you launch from each build path. Allow `neomouse` in **System Settings → Privacy & Security → Accessibility**, then relaunch.
+
+### Underlying commands
+
+The Makefile is a thin wrapper. If you want to run things by hand:
+
+```sh
+swift build                  # debug build
+swift build -c release       # release build
+swift run                    # build + run debug
+swift run -c release         # build + run release
+```
+
+For `swift test`, the test target uses `import Testing` (Swift Testing), which needs `Testing.framework` and `lib_TestingInterop.dylib` resolved at runtime. Under Command Line Tools they live under `$(xcode-select -p)` but aren't on the default rpath, so `swift test` needs:
 
 ```sh
 DEV_DIR="$(xcode-select -p)"
@@ -166,7 +178,7 @@ swift test \
     -Xlinker -rpath -Xlinker "$DEV_DIR/Library/Developer/usr/lib"
 ```
 
-The rpath flags let `swift test` resolve `Testing.framework` + `lib_TestingInterop.dylib` at runtime under Command Line Tools (full Xcode finds them itself; the flags are harmless either way). The pre-commit hook bakes this in for you.
+Full Xcode finds them itself; the flags are harmless either way. `make test` injects these for you.
 
 ### Debug logging
 
@@ -201,19 +213,15 @@ DEBUG=1 LOG=1 neomouse                                 # both stdout and file
 
 The env-var checks are evaluated once at module load, so per-`debug()` overhead is a `Bool` check plus formatting. File writes are serialized on a background queue.
 
-### Lint / format
+### Lint / format config
 
-```sh
-swift format lint --strict --recursive Sources Tests   # check only
-swift format -i --recursive Sources Tests              # auto-fix in place
-```
-
-Config lives in `.swift-format` at the repo root: 4-space indent, 120-line limit, `NoAssignmentInExpressions` disabled (the codebase intentionally uses `return state = ...`).
+`.swift-format` at the repo root: 4-space indent, 120-line limit, `NoAssignmentInExpressions` disabled (the codebase intentionally uses `return state = ...`).
 
 ### Project layout
 
 ```
 Package.swift                — SwiftPM manifest
+Makefile                     — developer commands (`make help`)
 .swift-format                — formatter / linter config
 .githooks/pre-commit         — lint staged Swift + run tests
 .github/workflows/ci.yml     — CI: lint + build + test on macos-15 (Swift 6.3 via swiftly)
