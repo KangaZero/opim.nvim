@@ -4,11 +4,10 @@ import neomouseUtils
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // NeoMouse is a background input tool — no Dock icon, no focus
-        // stealing, no Settings window auto-shown on launch. Without this,
-        // the default `.regular` policy surfaces the empty Settings scene
-        // because it's the only scene the App declares.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Fires after NSApp exists but before SwiftUI evaluates `body` and
+        // builds scenes — the right window to suppress the auto-injected
+        // empty Settings scene that .regular policy would otherwise surface.
         NSApp.setActivationPolicy(.accessory)
     }
 
@@ -22,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let mouseMonitor = NeoMouse.mouseMonitor {
             NSEvent.removeMonitor(mouseMonitor)
             NeoMouse.mouseMonitor = nil
+
         }
 
         // Release any button we may have synthesized .mouseDown for (visual
@@ -44,9 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.startCGYPoint = nil
         appState.endCGXPoint = nil
         appState.endCGYPoint = nil
-        appState.previousStartCGXPoint = nil
-        appState.previousStartCGYPoint = nil
-        appState.previousEndCGXPoint = nil
-        appState.previousEndCGYPoint = nil
+        appState.previousVisualStartCGXPoint = nil
+        appState.previousVisualStartCGYPoint = nil
+        appState.previousVisualEndCGXPoint = nil
+        appState.previousVisualEndCGYPoint = nil
     }
 }

@@ -16,10 +16,10 @@ func exitVisualMode(appState: NeoMouseState, visualHighlightOverlay: VisualHighl
             "startCGPoint:\(String(describing: appState.startCGXPoint)), \(String(describing: appState.startCGYPoint)), endCGPoint: \(String(describing: appState.endCGXPoint)), \(String(describing: appState.endCGYPoint))"
         )
     }
-    appState.previousStartCGXPoint = appState.startCGXPoint
-    appState.previousStartCGYPoint = appState.startCGYPoint
-    appState.previousEndCGXPoint = appState.endCGXPoint
-    appState.previousEndCGYPoint = appState.endCGYPoint
+    appState.previousVisualStartCGXPoint = appState.startCGXPoint
+    appState.previousVisualStartCGYPoint = appState.startCGYPoint
+    appState.previousVisualEndCGXPoint = appState.endCGXPoint
+    appState.previousVisualEndCGYPoint = appState.endCGYPoint
     appState.startCGXPoint = nil
     appState.startCGYPoint = nil
     appState.endCGXPoint = nil

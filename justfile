@@ -31,6 +31,7 @@ run-release:
 test:
     swift test \
         -Xswiftc -F -Xswiftc {{dev_dir}}/Library/Developer/Frameworks \
+        -Xlinker -L -Xlinker {{dev_dir}}/Library/Developer/usr/lib \
         -Xlinker -rpath -Xlinker {{dev_dir}}/Library/Developer/Frameworks \
         -Xlinker -rpath -Xlinker {{dev_dir}}/Library/Developer/usr/lib
 

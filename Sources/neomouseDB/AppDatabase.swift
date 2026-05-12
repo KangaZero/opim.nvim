@@ -48,6 +48,8 @@ public func initializeDB(forceReSeed: Bool) {
             try db.create(table: "mark") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("mark", .text).notNull()
+                t.column("startCGXPoint", .double).notNull()
+                t.column("startCGYPoint", .double).notNull()
                 t.column("endCGXPoint", .double).notNull()
                 t.column("endCGYPoint", .double).notNull()
                 t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")

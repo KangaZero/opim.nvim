@@ -8,11 +8,30 @@ public func getActiveDisplays() -> [CGDirectDisplayID] {
     return displays
 }
 
+public func getMainScreenRect() -> CGRect {
+    return getActiveDisplays().first.map {
+        CGDisplayBounds($0)
+    } ?? .zero
+}
+
 public func getCurrentScreenSize() -> CGSize? {
     guard let mouseLoc = CGEvent(source: nil)?.location else { return nil }
     return getActiveDisplays().first(where: { CGDisplayBounds($0).contains(mouseLoc) }).map {
         CGDisplayBounds($0).size
     }
+}
+public func getAdjacentScreenRect() -> CGRect? {
+    let displays = getActiveDisplays()
+    guard !displays.isEmpty else { return nil }
+    guard let mouseLocation = getCurrentMouseLocation() else { return nil }
+
+    let currentIndex =
+        displays.firstIndex {
+            CGDisplayBounds($0).contains(mouseLocation)
+        } ?? 0
+
+    let nextIndex = (currentIndex + 1) % displays.count
+    return CGDisplayBounds(displays[nextIndex])
 }
 
 public func getAllScreensBoundingRect() -> CGRect {

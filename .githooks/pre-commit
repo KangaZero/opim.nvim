@@ -37,6 +37,7 @@ LIB="$DEV_DIR/Library/Developer/usr/lib"
 
 swift test \
     -Xswiftc -F -Xswiftc "$FW" \
+    -Xlinker -L -Xlinker "$LIB" \
     -Xlinker -rpath -Xlinker "$FW" \
     -Xlinker -rpath -Xlinker "$LIB" \
     --quiet \
