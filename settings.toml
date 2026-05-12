@@ -34,4 +34,4 @@ degrees_to_rotate = 90.0
 
 [commands]
 # Commands exposed in command-line mode.
-available = ["numbers", "relativenumbers"]
+available = ["numbers", "relativenumbers", "delmarks"]

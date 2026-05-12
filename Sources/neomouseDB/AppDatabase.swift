@@ -33,7 +33,7 @@ public func initializeDB(forceReSeed: Bool) {
                 return
             }
             try db.execute(sql: "DROP TABLE IF EXISTS operation")
-            debug("Dropped table 'mark' if it operation.")
+            debug("Dropped table 'operation' if it existed.")
             try db.execute(sql: "DROP TABLE IF EXISTS mark")
             debug("Dropped table 'mark' if it existed.")
             try db.execute(sql: "DROP TABLE IF EXISTS session")
@@ -54,6 +54,10 @@ public func initializeDB(forceReSeed: Bool) {
                 t.column("endCGYPoint", .double).notNull()
                 t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
                 t.belongsTo("session", onDelete: .cascade).notNull()
+                // Vim semantics: per session, each mark name is unique. Lets
+                // setMark rely on a single (sessionId, mark) lookup, and makes
+                // duplicates impossible at the SQL level (not just app code).
+                t.uniqueKey(["sessionId", "mark"])
             }
             try db.create(table: "operation") { t in
                 t.autoIncrementedPrimaryKey("id")
@@ -75,97 +79,100 @@ public func initializeDB(forceReSeed: Bool) {
     }
 }
 
-func seedSession() {
+/// Upsert a mark by (sessionId, mark). Matches Vim's `ma` overwrite semantics:
+/// pressing `ma` twice from different positions keeps the second position, not
+/// two rows. If an existing mark with the same (sessionId, mark) is found, its
+/// CG points are updated; otherwise a new row is inserted.
+public func setMark(
+    mark: String,
+    startCGXPoint: Double,
+    startCGYPoint: Double,
+    endCGXPoint: Double,
+    endCGYPoint: Double,
+    sessionId: Int64
+) {
     do {
         try dbQueue.write { db in
-            var newSession = Session(name: "Seed Session", createdAt: Date(), updatedAt: Date())
-            try newSession.insert(db)
-        }
-    } catch {
-        debug("Seed Session error: ", error)
-    }
-}
-
-func seedMark(numberOfMarks: Int) {
-    let markCharacters: [String] = "0123456789abcdefghijklmnopqrstuvwxyz".map {
-        String($0)
-    }
-    guard numberOfMarks <= markCharacters.count || numberOfMarks <= 0 else {
-        debug(
-            "Number of marks to seed exceeds available unique characters: \(markCharacters.count) or is 0 or less: ",
-            numberOfMarks)
-        return
-    }
-
-    guard let currentScreen = getCurrentScreenSize() else {
-        debug("Could not get current screen size in seedMark")
-        return
-    }
-    do {
-        try dbQueue.write { db in
-            for i in 0..<numberOfMarks {
+            if var existing =
+                try Mark
+                .filter(Mark.Columns.sessionId == sessionId)
+                .filter(Mark.Columns.mark == mark)
+                .fetchOne(db)
+            {
+                existing.startCGXPoint = startCGXPoint
+                existing.startCGYPoint = startCGYPoint
+                existing.endCGXPoint = endCGXPoint
+                existing.endCGYPoint = endCGYPoint
+                try existing.update(db)
+            } else {
                 var newMark = Mark(
-                    mark: markCharacters[i],
-                    endCGXPoint: Double.random(in: 0...currentScreen.width),
-                    endCGYPoint: Double.random(in: 0...currentScreen.height),
+                    mark: mark,
+                    startCGXPoint: startCGXPoint,
+                    startCGYPoint: startCGYPoint,
+                    endCGXPoint: endCGXPoint,
+                    endCGYPoint: endCGYPoint,
                     createdAt: Date(),
-                    sessionId: 1)
+                    sessionId: sessionId
+                )
                 try newMark.insert(db)
             }
         }
     } catch {
-        debug("Seed Mark error: ", error)
+        debug("setMark error: ", error)
     }
-
 }
 
-struct Session: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "session"
-    var id: Int64?
-    var name: String
-    var createdAt: Date
-    var updatedAt: Date
+public func deleteMark(
+    mark: String,
+    sessionId: Int64
+) {
+    do {
+        try dbQueue.write { db in
+            guard
+                let existing =
+                    try Mark
+                    .filter(Mark.Columns.sessionId == sessionId)
+                    .filter(Mark.Columns.mark == mark)
+                    .fetchOne(db)
+            else {
+                return debug("Cannot find existing mark to delete")
+            }
+            try existing.delete(db)
+        }
+    } catch {
+        debug("deleteMark error: ", error)
+    }
+}
 
-    static let marks = hasMany(Mark.self)
-    static let operations = hasMany(Operation.self)
+public struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "mark"
+    public var id: Int64?
+    public var mark: String
+    public var startCGXPoint: Double
+    public var startCGYPoint: Double
+    public var endCGXPoint: Double
+    public var endCGYPoint: Double
+    public var createdAt: Date
+    public var sessionId: Int64
 
-    enum Columns {
-        static let id = Column(CodingKeys.id)
-        static let name = Column(CodingKeys.name)
-        static let createdAt = Column(CodingKeys.createdAt)
-        static let updatedAt = Column(CodingKeys.updatedAt)
+    public enum Columns {
+        public static let id = Column(CodingKeys.id)
+        public static let mark = Column(CodingKeys.mark)
+        public static let startCGXPoint = Column(CodingKeys.startCGXPoint)
+        public static let startCGYPoint = Column(CodingKeys.startCGYPoint)
+        public static let endCGXPoint = Column(CodingKeys.endCGXPoint)
+        public static let endCGYPoint = Column(CodingKeys.endCGYPoint)
+        public static let createdAt = Column(CodingKeys.createdAt)
+        public static let sessionId = Column(CodingKeys.sessionId)
     }
 
-    mutating func didInsert(_ inserted: InsertionSuccess) {
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }
 }
 
-struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "mark"
-    var id: Int64?
-    var mark: String
-    var endCGXPoint: Double
-    var endCGYPoint: Double
-    var createdAt: Date
-    var sessionId: Int64
-
-    enum Columns {
-        static let id = Column(CodingKeys.id)
-        static let mark = Column(CodingKeys.mark)
-        static let endCGXPoint = Column(CodingKeys.endCGXPoint)
-        static let endCGYPoint = Column(CodingKeys.endCGYPoint)
-        static let createdAt = Column(CodingKeys.createdAt)
-        static let sessionId = Column(CodingKeys.sessionId)
-    }
-
-    mutating func didInsert(_ inserted: InsertionSuccess) {
-        id = inserted.rowID
-    }
-}
-
-struct Operation: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "operation"
+struct ExecutedOperation: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "excecuted_operation"
     var id: Int64?
     var name: OperationName
     var isVisual: Bool
