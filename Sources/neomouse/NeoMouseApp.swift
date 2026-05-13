@@ -417,6 +417,55 @@ struct NeoMouse: App {
                             appState.mode = .normal(currentPendingOperation: nil)
                         }
                         break
+                    case "y":
+                        guard
+                            event.modifierFlags.rawValue == 256,
+                            appState.isVisual,
+                            let startX = appState.startCGXPoint,
+                            let startY = appState.startCGYPoint,
+                            let endX = appState.endCGXPoint,
+                            let endY = appState.endCGYPoint
+                        else {
+                            appState.mode = .normal(currentPendingOperation: nil)
+                            return
+                        }
+                        let currentVisualHighlightWidth: CGFloat = abs(endX - startX)
+                        let currentVisualHighlightHeight: CGFloat = abs(endY - startY)
+                        let unionOrigin = getAllScreensBoundingRect().origin
+                        let originX = min(startX, endX) - unionOrigin.x
+                        let originY = min(startY, endY) - unionOrigin.y
+                        let currentVisualHighlightCGRect = CGRect(
+                            x: originX,
+                            y: originY,
+                            width: currentVisualHighlightWidth,
+                            height: currentVisualHighlightHeight
+                        )
+                        let rect = currentVisualHighlightCGRect
+                        let excludedIDs: [CGWindowID] = [
+                            VisualHighlightOverlay.shared.windowID,
+                            GridOverlay.shared.windowID,
+                        ].compactMap { $0 }
+                        Task { @MainActor in
+                            do {
+                                guard let screenshotTaken = try await screenshot(rect: rect, excluding: excludedIDs)
+                                else {
+                                    debug("No screenshotTaken for operation: y")
+                                    appState.mode = .normal(currentPendingOperation: nil)
+                                    appState.isVisual = false
+                                    return
+                                }
+                                let image = NSImage(cgImage: screenshotTaken, size: .zero)
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.writeObjects([image])
+                                appState.mode = .normal(currentPendingOperation: nil)
+                                appState.isVisual = false
+                            } catch {
+                                debug("screenshot failed: \(error)")
+                                appState.mode = .normal(currentPendingOperation: nil)
+                                appState.isVisual = false
+                            }
+                        }
+                        break
                     case "o", "O":
                         guard appState.isVisual,
                             let sx = appState.startCGXPoint,
@@ -859,6 +908,10 @@ final class VisualHighlightOverlay {
     private var window: NSWindow?
     private weak var appState: NeoMouseState?
 
+    var windowID: CGWindowID? {
+        window.map { CGWindowID($0.windowNumber) }
+    }
+
     func passAppState(state: NeoMouseState) {
         appState = state
         toggle()
@@ -888,6 +941,15 @@ final class VisualHighlightOverlay {
     func hideOverlay() {
         window?.orderOut(nil)
     }
+    // func currentHighlightCGRect() -> CGRect? {
+    //         guard state.isVisual, width > 0, height > 0 else { return nil }
+    //         return CGRect(
+    //             x: (state. + endX) / 2 - getAllScreensBoundingRect().origin.x,
+    //             y: (startY + endY) / 2 - getAllScreensBoundingRect().origin.y,
+    //             width: width,
+    //             height: height
+    //         )
+    //     }
 }
 
 struct VisualHighlightOverlayView: View {
@@ -931,6 +993,10 @@ final class GridOverlay {
     private var window: NSWindow?
     private var isVisible = false
     private weak var appState: NeoMouseState?
+
+    var windowID: CGWindowID? {
+        window.map { CGWindowID($0.windowNumber) }
+    }
 
     func toggle() {
         // appState = state
