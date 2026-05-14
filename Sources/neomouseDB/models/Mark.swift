@@ -1,0 +1,102 @@
+import Foundation
+import GRDB
+
+import neomouseUtils
+
+struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "mark"
+    var id: Int64?
+    var mark: String
+    var isVisual: Bool
+    var startCGXPoint: Double?  //NOTE: Only exists when isVisual == true
+    var startCGYPoint: Double?  //NOTE: Only exists when isVisual == true
+    var endCGXPoint: Double  //Serves as the x position when isVisual == false
+    var endCGYPoint: Double  //Serves as the y position when isVisual == false
+    var createdAt: Date
+    var sessionId: Int64
+
+    enum Columns {
+        static let id = Column(CodingKeys.id)
+        static let mark = Column(CodingKeys.mark)
+        static let isVisual = Column(CodingKeys.isVisual)
+        static let startCGXPoint = Column(CodingKeys.startCGXPoint)
+        static let startCGYPoint = Column(CodingKeys.startCGYPoint)
+        static let endCGXPoint = Column(CodingKeys.endCGXPoint)
+        static let endCGYPoint = Column(CodingKeys.endCGYPoint)
+        static let createdAt = Column(CodingKeys.createdAt)
+        static let sessionId = Column(CodingKeys.sessionId)
+    }
+
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+/// Upsert a mark by (sessionId, mark). Matches Vim's `ma` overwrite semantics:
+/// pressing `ma` twice from different positions keeps the second position, not
+/// two rows. If an existing mark with the same (sessionId, mark) is found, its
+/// CG points are updated; otherwise a new row is inserted.
+public func setMark(
+    mark: String,
+    isVisual: Bool,
+    startCGXPoint: Double?,
+    startCGYPoint: Double?,
+    endCGXPoint: Double,
+    endCGYPoint: Double,
+    sessionId: Int64
+) {
+    do {
+        try dbQueue.write { db in
+            if var existing =
+                try Mark
+                .filter(Mark.Columns.sessionId == sessionId)
+                .filter(Mark.Columns.mark == mark)
+                .fetchOne(db)
+            {
+                debug("Overwritting existing mark in fn setMark")
+                existing.startCGXPoint = startCGXPoint
+                existing.startCGYPoint = startCGYPoint
+                existing.endCGXPoint = endCGXPoint
+                existing.endCGYPoint = endCGYPoint
+                try existing.update(db)
+            } else {
+                debug("Creating new mark in fn setMark")
+                var newMark = Mark(
+                    mark: mark,
+                    isVisual: isVisual,
+                    startCGXPoint: startCGXPoint,
+                    startCGYPoint: startCGYPoint,
+                    endCGXPoint: endCGXPoint,
+                    endCGYPoint: endCGYPoint,
+                    createdAt: Date(),
+                    sessionId: sessionId
+                )
+                try newMark.insert(db)
+            }
+        }
+    } catch {
+        debug("setMark error: ", error)
+    }
+}
+
+public func deleteMark(
+    mark: String,
+    sessionId: Int64
+) {
+    do {
+        try dbQueue.write { db in
+            guard
+                let existing =
+                    try Mark
+                    .filter(Mark.Columns.sessionId == sessionId)
+                    .filter(Mark.Columns.mark == mark)
+                    .fetchOne(db)
+            else {
+                return debug("Cannot find existing mark to delete")
+            }
+            try existing.delete(db)
+        }
+    } catch {
+        debug("deleteMark error: ", error)
+    }
+}

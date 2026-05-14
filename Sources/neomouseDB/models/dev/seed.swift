@@ -31,17 +31,20 @@ func seedMark(numberOfMarks: Int = 5) {
     do {
         try dbQueue.write { db in
             for i in 0..<numberOfMarks {
-                let x = Double.random(in: 0...currentScreen.width)
-                let y = Double.random(in: 0...currentScreen.height)
-                var newMark = Mark(
+                let startX = Double.random(in: 0...currentScreen.width)
+                let startY = Double.random(in: 0...currentScreen.height)
+                let endX = Double.random(in: 0...currentScreen.width)
+                let endY = Double.random(in: 0...currentScreen.height)
+                let isVisual = Int.random(in: 1..<2) == 1 ? true : false
+                setMark(
                     mark: markCharacters[i],
-                    startCGXPoint: x,
-                    startCGYPoint: y,
-                    endCGXPoint: x,
-                    endCGYPoint: y,
-                    createdAt: Date(),
-                    sessionId: 1)
-                try newMark.insert(db)
+                    isVisual: isVisual,
+                    startCGXPoint: isVisual ? startX : nil,
+                    startCGYPoint: isVisual ? startY : nil,
+                    endCGXPoint: endX,
+                    endCGYPoint: endY,
+                    sessionId: 1
+                )
             }
         }
     } catch {

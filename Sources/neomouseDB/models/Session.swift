@@ -25,6 +25,23 @@ public struct Session: Codable, Identifiable, FetchableRecord, MutablePersistabl
     }
 }
 
+//INFO This only when id is incremental
+public func getLastSession() -> Session? {
+    do {
+        return try dbQueue.read { db in
+            let sessionCount = try Session.all().fetchCount(db)
+            guard sessionCount > 0 else {
+                debug("No sessions found in fn getSessionById")
+                return nil
+            }
+            return try Session.order(Session.Columns.id.desc).fetchOne(db)
+        }
+    } catch {
+        debug("getLastSession error: ", error)
+        return nil
+    }
+}
+
 public func getSessionById(sessionId: Int64) -> Session? {
     do {
         return try dbQueue.read { db in
@@ -78,7 +95,7 @@ public func updateSession(at sessionId: Int64, newSessionName: String?) {
             guard var session = try Session.filter(Session.Columns.name == sessionId).fetchOne(db) else {
                 return debug("Cannot find existing session in fn updateSession")
             }
-            session.updatedAt = Date.now
+            session.updatedAt = .now
             if let newSessionName {
                 session.name = newSessionName
             }

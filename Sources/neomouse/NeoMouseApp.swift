@@ -22,6 +22,7 @@ class NeoMouseState: ObservableObject {
     @Published var startCGYPoint: CGFloat? = nil
     @Published var endCGXPoint: CGFloat? = nil
     @Published var endCGYPoint: CGFloat? = nil
+    @Published var currentSession: Session? = nil
 
     let commands: [String]
     //WARNING: Until a good dynamic solution is found, do not allow these 2 to be mutable, could be a headache as divisionCharacters may
@@ -94,7 +95,9 @@ struct NeoMouse: App {
         // eg.. gridDivisions * gridDivisions <=findModeGridDivisionCharacters.count, and similar for
         // innerGridDivisions
         initializeDB(forceReSeed: false)
+        appState.currentSession = getLastSession()
 
+        debug("currentSession: \(String(describing: appState.currentSession))")
         let _allScreensBoundingRect = getAllScreensBoundingRect()
         debug("allScreensRect: \(String(describing: _allScreensBoundingRect))")
         let appState = NeoMouse.sharedState
@@ -208,6 +211,7 @@ struct NeoMouse: App {
                     {
                         setMark(
                             mark: markChar,
+                            isVisual: appState.isVisual,
                             startCGXPoint: Double(currentCGPoint.x),
                             startCGYPoint: Double(currentCGPoint.y),
                             endCGXPoint: Double(currentCGPoint.x),

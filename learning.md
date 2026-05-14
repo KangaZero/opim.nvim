@@ -1,3 +1,5 @@
+# ⚠️DISCLAIMER: All of this is AI GENERATED — DOUBLE CHECK WITH REAL SOURCES AS THEY COULD BE OUTDATED OR FALSE
+ 
 # Learning
 
 This is simply here to understand and learn the swift language. 
@@ -45,7 +47,7 @@ session.name = changedSession.name
 ```
 ```
 
-# Doc Comments Strucuture
+# Doc Comments Structure
 
 ```swift
 ```
@@ -68,6 +70,7 @@ session.name = changedSession.name
 /// let result = myFunc(paramOne: "hello", paramTwo: nil)
 /// ```
 func myFunc(paramOne: String, paramTwo: String?) throws -> String { }
+
 ```
 ```
 
@@ -117,4 +120,33 @@ session.update(session: newSession)
 session.update(with: newSession)
 updateSession(sessionId: 1, newName: "Work")
 ```
+
+# `Task {}` in Swift vs TypeScript
+
+Both are ways to fire off async work from a sync context.
+
+## Swift
+
+```swift
+Task {
+    let data = await fetchData()
+    print(data)
+}
 ```
+
+## TypeScript
+
+```typescript
+// async IIFE
+(async () => {
+    const data = await fetchData()
+    console.log(data)
+})()
+
+// or void a promise
+void fetchData().then(data => console.log(data))
+```
+
+## Key idea
+
+Neither makes the surrounding function async — they just spin up an async context inline.

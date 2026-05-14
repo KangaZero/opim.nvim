@@ -6,6 +6,7 @@ import neomouseUtils
 let dbPath = FileManager.default.temporaryDirectory.appendingPathComponent("neomouse.sqlite").path
 let dbQueue: DatabaseQueue = {
     do {
+        debug("dbPath: \(dbPath)")
         return try DatabaseQueue(path: dbPath)
     } catch {
         fatalError("Failed to open database at \(dbPath): \(error)")
@@ -22,7 +23,7 @@ enum OperationName: String, Codable, DatabaseValueConvertible {
         scrollDown, scrollLeft, scrollRight
 }
 
-public func initializeDB(forceReSeed: Bool) {
+public func initializeDB(forceReSeed: Bool = false) {
     do {
         try dbQueue.write { db in
             let isTablesExist =
@@ -32,22 +33,33 @@ public func initializeDB(forceReSeed: Bool) {
                 debug("Tables already exist, skipping initialization.")
                 return
             }
-            try db.execute(sql: "DROP TABLE IF EXISTS operation")
-            debug("Dropped table 'operation' if it existed.")
-            try db.execute(sql: "DROP TABLE IF EXISTS mark")
-            debug("Dropped table 'mark' if it existed.")
-            try db.execute(sql: "DROP TABLE IF EXISTS session")
-            debug("Dropped table 'session' if it existed.")
-
+            let tables = ["executed_operation", "mark", "session"]
+            for table in tables {
+                try db.execute(sql: "DROP TABLE IF EXISTS \(table)")
+                debug("Dropped table \(table) if it existed")
+            }
+            // try db.execute(sql: "DROP TABLE IF EXISTS executed_operation")
+            // debug("Dropped table 'operation' if it existed.")
+            // try db.execute(sql: "DROP TABLE IF EXISTS mark")
+            // debug("Dropped table 'mark' if it existed.")
+            // try db.execute(sql: "DROP TABLE IF EXISTS session")
+            // debug("Dropped table 'session' if it existed.")
+            //
             try db.create(table: "session") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("name", .text).notNull()
                 t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
                 t.column("updatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
             }
+            debug("Created 'session' table")
+            var session = Session(id: 1, name: "Cookiezi", createdAt: .now, updatedAt: .now)
+            try session.insert(db)
+            debug("Created new session: \(session)")
+
             try db.create(table: "mark") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("mark", .text).notNull()
+                t.column("isVisual", .boolean).notNull()
                 t.column("startCGXPoint", .double).notNull()
                 t.column("startCGYPoint", .double).notNull()
                 t.column("endCGXPoint", .double).notNull()
@@ -59,7 +71,9 @@ public func initializeDB(forceReSeed: Bool) {
                 // duplicates impossible at the SQL level (not just app code).
                 t.uniqueKey(["sessionId", "mark"])
             }
-            try db.create(table: "operation") { t in
+            debug("Created 'mark' table")
+
+            try db.create(table: "executed_operation") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("name", .text).notNull()
                 t.column("isVisual", .boolean).notNull()
@@ -72,102 +86,11 @@ public func initializeDB(forceReSeed: Bool) {
                 t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
                 t.belongsTo("session", onDelete: .cascade).notNull()
             }
+            debug("Created 'executed_operation' table")
         }
     } catch {
         debug("Initialize DB error: ", error)
 
-    }
-}
-
-/// Upsert a mark by (sessionId, mark). Matches Vim's `ma` overwrite semantics:
-/// pressing `ma` twice from different positions keeps the second position, not
-/// two rows. If an existing mark with the same (sessionId, mark) is found, its
-/// CG points are updated; otherwise a new row is inserted.
-public func setMark(
-    mark: String,
-    startCGXPoint: Double,
-    startCGYPoint: Double,
-    endCGXPoint: Double,
-    endCGYPoint: Double,
-    sessionId: Int64
-) {
-    do {
-        try dbQueue.write { db in
-            if var existing =
-                try Mark
-                .filter(Mark.Columns.sessionId == sessionId)
-                .filter(Mark.Columns.mark == mark)
-                .fetchOne(db)
-            {
-                existing.startCGXPoint = startCGXPoint
-                existing.startCGYPoint = startCGYPoint
-                existing.endCGXPoint = endCGXPoint
-                existing.endCGYPoint = endCGYPoint
-                try existing.update(db)
-            } else {
-                var newMark = Mark(
-                    mark: mark,
-                    startCGXPoint: startCGXPoint,
-                    startCGYPoint: startCGYPoint,
-                    endCGXPoint: endCGXPoint,
-                    endCGYPoint: endCGYPoint,
-                    createdAt: Date(),
-                    sessionId: sessionId
-                )
-                try newMark.insert(db)
-            }
-        }
-    } catch {
-        debug("setMark error: ", error)
-    }
-}
-
-public func deleteMark(
-    mark: String,
-    sessionId: Int64
-) {
-    do {
-        try dbQueue.write { db in
-            guard
-                let existing =
-                    try Mark
-                    .filter(Mark.Columns.sessionId == sessionId)
-                    .filter(Mark.Columns.mark == mark)
-                    .fetchOne(db)
-            else {
-                return debug("Cannot find existing mark to delete")
-            }
-            try existing.delete(db)
-        }
-    } catch {
-        debug("deleteMark error: ", error)
-    }
-}
-
-public struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
-    public static let databaseTableName = "mark"
-    public var id: Int64?
-    public var mark: String
-    public var startCGXPoint: Double
-    public var startCGYPoint: Double
-    public var endCGXPoint: Double
-    public var endCGYPoint: Double
-    public var createdAt: Date
-    public var sessionId: Int64
-
-    public enum Columns {
-        public static let id = Column(CodingKeys.id)
-        public static let mark = Column(CodingKeys.mark)
-        public static let startCGXPoint = Column(CodingKeys.startCGXPoint)
-        public static let startCGYPoint = Column(CodingKeys.startCGYPoint)
-        public static let endCGXPoint = Column(CodingKeys.endCGXPoint)
-        public static let endCGYPoint = Column(CodingKeys.endCGYPoint)
-        public static let createdAt = Column(CodingKeys.createdAt)
-        public static let sessionId = Column(CodingKeys.sessionId)
-    }
-
-    public mutating func didInsert(_ inserted: InsertionSuccess) {
-        id = inserted.rowID
     }
 }
 
