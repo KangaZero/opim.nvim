@@ -3,19 +3,19 @@ import GRDB
 
 import neomouseUtils
 
-struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "mark"
-    var id: Int64?
-    var mark: String
-    var isVisual: Bool
-    var startCGXPoint: Double?  //NOTE: Only exists when isVisual == true
-    var startCGYPoint: Double?  //NOTE: Only exists when isVisual == true
-    var endCGXPoint: Double  //Serves as the x position when isVisual == false
-    var endCGYPoint: Double  //Serves as the y position when isVisual == false
-    var createdAt: Date
-    var sessionId: Int64
+public struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "mark"
+    public var id: Int64?
+    public var mark: String
+    public var isVisual: Bool
+    public var startCGXPoint: Double?  //NOTE: Only exists when isVisual == true
+    public var startCGYPoint: Double?  //NOTE: Only exists when isVisual == true
+    public var endCGXPoint: Double  //Serves as the x position when isVisual == false
+    public var endCGYPoint: Double  //Serves as the y position when isVisual == false
+    public var createdAt: Date
+    public var sessionId: Int64
 
-    enum Columns {
+    public enum Columns {
         static let id = Column(CodingKeys.id)
         static let mark = Column(CodingKeys.mark)
         static let isVisual = Column(CodingKeys.isVisual)
@@ -27,11 +27,27 @@ struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRecord {
         static let sessionId = Column(CodingKeys.sessionId)
     }
 
-    mutating func didInsert(_ inserted: InsertionSuccess) {
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }
 }
 
+public func getMark(
+        mark: String,
+        sessionId: Int64
+        ) -> Mark? {
+    do {
+        return try dbQueue.read { db in
+            try Mark
+                .filter(Mark.Columns.sessionId == sessionId)
+                .filter(Mark.Columns.mark == mark)
+                .fetchOne(db)
+        }
+    } catch {
+        debug("getMark error: ", error)
+        return nil
+    }
+}
 /// Upsert a mark by (sessionId, mark). Matches Vim's `ma` overwrite semantics:
 /// pressing `ma` twice from different positions keeps the second position, not
 /// two rows. If an existing mark with the same (sessionId, mark) is found, its

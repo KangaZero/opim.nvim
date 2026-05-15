@@ -94,7 +94,7 @@ struct NeoMouse: App {
         //TODO add checks to make sure no unintended behavior of out of bounds access happens
         // eg.. gridDivisions * gridDivisions <=findModeGridDivisionCharacters.count, and similar for
         // innerGridDivisions
-        initializeDB(forceReSeed: false)
+        initializeDB(forceReIntialize: false)
         appState.currentSession = getLastSession()
 
         debug("currentSession: \(String(describing: appState.currentSession))")
