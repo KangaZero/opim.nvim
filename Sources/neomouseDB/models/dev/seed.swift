@@ -34,7 +34,7 @@ public func seedMarks(numberOfMarks: Int = 5) {
         debug("Invalid numberOfMarks \(numberOfMarks): must be in 1...\(markCharacters.count)")
         return
     }
-    guard let currentScreen = getCurrentScreenSize() else {
+    guard let currentScreen = Screen.currentSize() else {
         debug("Could not get current screen size in seedMarks")
         return
     }

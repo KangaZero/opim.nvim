@@ -35,6 +35,13 @@ public struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRe
         sessionId: Int64
     ) -> Mark? {
         do {
+            guard
+                mark.count == 1,
+                mark.first!.isLetter == true || mark.first!.isNumber == true
+            else {
+                debug("Mark - get: Invalid mark \(mark). Marks must be a single letter or number.")
+                return nil
+            }
             return try dbQueue.read { db in
                 try Mark
                     .filter(Mark.Columns.sessionId == sessionId)
@@ -75,6 +82,12 @@ public struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRe
         sessionId: Int64
     ) {
         do {
+            guard
+                mark.count == 1,
+                mark.first!.isLetter == true || mark.first!.isNumber == true
+            else {
+                return debug("Mark - set: Invalid mark \(mark). Marks must be a single letter or number.")
+            }
             try dbQueue.write { db in
                 if var existing =
                     try Mark

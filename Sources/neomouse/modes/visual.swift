@@ -5,7 +5,7 @@ import neomouseUtils
 @MainActor
 func exitVisualMode(appState: NeoMouseState, visualHighlightOverlay: VisualHighlightOverlay) {
     guard appState.startCGXPoint != nil && appState.endCGXPoint != nil else { return }
-    mouseUp(.left, at: CGPoint(x: appState.endCGXPoint!, y: appState.endCGYPoint!))
+    Mouse.up(.left, at: CGPoint(x: appState.endCGXPoint!, y: appState.endCGYPoint!))
     //TODO Eventually use Session.Operations Table
     guard
         appState.startCGXPoint != nil && appState.startCGYPoint != nil

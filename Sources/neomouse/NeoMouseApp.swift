@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 import neomouseConfig
@@ -69,6 +70,8 @@ class NeoMouseState: ObservableObject {
 struct NeoMouse: App {
     static var keyMonitor: Any?
     static var mouseMonitor: Any?
+    static var pasteboardWatcher: Timer?
+    static var modeObserver: AnyCancellable?
     static let sharedState: NeoMouseState = {
         guard let url = Config.resolvedURL else {
             debug("No settings.toml found at any resolved path; using built-in defaults")
@@ -98,6 +101,7 @@ struct NeoMouse: App {
         if ProcessInfo.processInfo.environment["NEOMOUSE_SEED"] == "1" {
             seedAll()
         }
+
         appState.currentSession = Session.getLast()
         guard let currentSession = appState.currentSession else {
             debug("No session was found")
@@ -111,17 +115,23 @@ struct NeoMouse: App {
             return
         }
 
+        // Immediately copy current clipboard contents to "0" register
+        // try Register.set(register: "0", content: , sessionId: currentSession.id!)
+        debug(
+            "clipboardString: \(String(describing: NSPasteboard.general.readObjects(forClasses: [NSString.self], options: nil)?.first))"
+        )
+
         debug("currentSession: \(String(describing: currentSession))")
-        let _allScreensBoundingRect = getAllScreensBoundingRect()
+        let _allScreensBoundingRect = Screen.allBoundingRect()
         debug("allScreensRect: \(String(describing: _allScreensBoundingRect))")
         let appState = NeoMouse.sharedState
         // KeyCast.shared.passAppState(state: appState)
         NeoMouse.keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated {
-                let _currentCGPoint = getCurrentMouseLocation()
-                let _currentScreenSize = getCurrentScreenSize()
+                let _currentCGPoint = Mouse.location()
+                let _currentScreenSize = Screen.currentSize()
                 let _currentDisplayBounds = _currentCGPoint.flatMap { pt in
-                    getActiveDisplays().first(where: { CGDisplayBounds($0).contains(pt) })
+                    Screen.activeDisplays().first(where: { CGDisplayBounds($0).contains(pt) })
                         .map { CGDisplayBounds($0) }
                 }
                 guard let currentCGPoint = _currentCGPoint,
@@ -218,14 +228,12 @@ struct NeoMouse: App {
                     case .setMark:
                         guard
                             event.modifierFlags.rawValue == 256
-                                || event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift,
-                            event.characters?.count == 1,
-                            event.characters?.first?.isLetter == true || event.characters?.first?.isNumber == true
+                                || event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift
                         else {
                             appState.mode = .normal(
                                 currentPendingOperation: .none
                             )
-                            debug("setMark mark contains a non-shift modifiers, or it is not a single letter/digit")
+                            debug("setMark mark contains a non-shift modifiers")
                             return
                         }
                         Mark.set(
@@ -244,14 +252,12 @@ struct NeoMouse: App {
                     case .goToMark, .goToMarkExactState:
                         guard
                             event.modifierFlags.rawValue == 256
-                                || event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift,
-                            event.characters?.count == 1,
-                            event.characters?.first?.isLetter == true || event.characters?.first?.isNumber == true
+                                || event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift
                         else {
                             appState.mode = .normal(
                                 currentPendingOperation: .none
                             )
-                            debug("goToMark mark contains a non-shift modifiers, or it is not a single letter/digit")
+                            debug("goToMark mark contains a non-shift modifiers")
                             return
                         }
                         guard let mark = Mark.get(mark: event.characters!, sessionId: currentSession.id!) else {
@@ -270,10 +276,10 @@ struct NeoMouse: App {
                                 appState.endCGXPoint = CGFloat(mark.endCGXPoint)
                                 appState.endCGYPoint = CGFloat(mark.endCGYPoint)
                                 VisualHighlightOverlay.shared.passAppState(state: appState)
-                                // moveMouseByExactGlobalCGPoint(x: mark.startCGXPoint!, y: mark.startCGYPoint!)
+                                // Mouse.moveToGlobal(x: mark.startCGXPoint!, y: mark.startCGYPoint!)
                             }
                         }
-                        moveMouseByExactGlobalCGPoint(
+                        Mouse.moveToGlobal(
                             x: mark.endCGXPoint,
                             y: mark.endCGYPoint)
                         appState.mode = .normal(
@@ -364,9 +370,9 @@ struct NeoMouse: App {
                             stepX: appState.rangeX,
                             stepY: appState.rangeY,
                             count: operationCount)
-                        moveMouseRelatively(
+                        Mouse.moveRelative(
                             x: delta.dx, y: delta.dy,
-                            enableClampToCurrentScreen:
+                            clampToScreen:
                                 appState.isClampCursorToCurrentScreen)
                         appState.mode = .normal(
                             currentPendingOperation: .none
@@ -399,7 +405,7 @@ struct NeoMouse: App {
                             localX: localCGPoint.x,
                             screenHeight: currentScreenSize.height,
                             gridInset: appState.gridInset)
-                        moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                        Mouse.moveToScreenLocal(x: target.x, y: target.y)
                         break
                     case "g":
                         guard event.modifierFlags.rawValue == 256 else {
@@ -421,7 +427,7 @@ struct NeoMouse: App {
                                 gridInset: appState.gridInset,
                                 linesOnScreen: appState.linesOnScreen,
                                 count: operationCount)
-                            moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                            Mouse.moveToScreenLocal(x: target.x, y: target.y)
                             appState.mode = .normal(
                                 currentPendingOperation: .none
                             )
@@ -431,7 +437,7 @@ struct NeoMouse: App {
                             let target = MotionTarget.top(
                                 localX: localCGPoint.x,
                                 gridInset: appState.gridInset)
-                            moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                            Mouse.moveToScreenLocal(x: target.x, y: target.y)
                             appState.mode = .normal(
                                 currentPendingOperation: .gg
                             )
@@ -445,13 +451,13 @@ struct NeoMouse: App {
                         break
                     case "w", "W", "\u{17}":
                         if currentPendingNormalOperation == .ctrlW {
-                            guard let adjacentScreenRect = getAdjacentScreenRect() else {
+                            guard let adjacentScreenRect = Screen.adjacentRect() else {
                                 debug("No adjacent screen found for Ctrl-w w")
                                 appState.mode = .normal(currentPendingOperation: .none)
                                 break
                             }
                             debug("\(adjacentScreenRect), adj")
-                            moveMouseByExactGlobalCGPoint(
+                            Mouse.moveToGlobal(
                                 x: adjacentScreenRect.midX,
                                 y: adjacentScreenRect.midY)
                             appState.mode = .normal(currentPendingOperation: .none)
@@ -480,9 +486,9 @@ struct NeoMouse: App {
                             x: currentDisplayBounds.origin.x + currentScreenSize.width
                                 - appState.gridInset,
                             y: currentCGPoint.y + lineHeight)
-                        moveMouseByExactGlobalCGPoint(x: startCGPoint.x, y: startCGPoint.y)
-                        // mouseDown(.left, at: startCGPoint)
-                        moveMouseByExactGlobalCGPoint(x: endCGPoint.x, y: endCGPoint.y)
+                        Mouse.moveToGlobal(x: startCGPoint.x, y: startCGPoint.y)
+                        // Mouse.down(.left, at: startCGPoint)
+                        Mouse.moveToGlobal(x: endCGPoint.x, y: endCGPoint.y)
                         appState.startCGXPoint = startCGPoint.x
                         appState.startCGYPoint = startCGPoint.y
                         appState.endCGXPoint = endCGPoint.x
@@ -508,19 +514,19 @@ struct NeoMouse: App {
                             && appState.previousVisualEndCGXPoint != nil
                             && appState.previousVisualEndCGYPoint != nil
                         {
-                            // mouseDown(.left, at: currentCGPoint)
+                            // Mouse.down(.left, at: currentCGPoint)
                             appState.startCGXPoint = appState.previousVisualStartCGXPoint
                             appState.startCGYPoint = appState.previousVisualStartCGYPoint
                             appState.endCGXPoint = appState.previousVisualEndCGXPoint
                             appState.endCGYPoint = appState.previousVisualEndCGYPoint
                             VisualHighlightOverlay.shared.passAppState(state: appState)
-                            moveMouseByExactGlobalCGPoint(
+                            Mouse.moveToGlobal(
                                 x: appState.endCGXPoint!,
                                 y: appState.endCGYPoint!)
                             appState.mode = .normal(currentPendingOperation: .none)
                         } else {
                             //Go to Visual state
-                            // mouseDown(.left, at: currentCGPoint)
+                            // Mouse.down(.left, at: currentCGPoint)
                             appState.startCGXPoint = currentCGPoint.x
                             appState.startCGYPoint = currentCGPoint.y
                             appState.endCGXPoint = currentCGPoint.x
@@ -539,6 +545,7 @@ struct NeoMouse: App {
                             let endX = appState.endCGXPoint,
                             let endY = appState.endCGYPoint
                         else {
+                            //Normal copy to register
                             appState.mode = .normal(currentPendingOperation: .none)
                             return
                         }
@@ -600,7 +607,7 @@ struct NeoMouse: App {
                         appState.startCGYPoint = ey
                         appState.endCGXPoint = sx
                         appState.endCGYPoint = sy
-                        moveMouseByExactGlobalCGPoint(x: sx, y: sy)
+                        Mouse.moveToGlobal(x: sx, y: sy)
                         appState.mode = .normal(currentPendingOperation: .none)
                         break
                     case "M":
@@ -608,7 +615,7 @@ struct NeoMouse: App {
                         let target = MotionTarget.verticalMiddle(
                             localX: localCGPoint.x,
                             screenHeight: currentScreenSize.height)
-                        moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                        Mouse.moveToScreenLocal(x: target.x, y: target.y)
                         appState.mode = .normal(
                             currentPendingOperation: .none
                         )
@@ -631,7 +638,7 @@ struct NeoMouse: App {
                             let target = MotionTarget.horizontalMiddle(
                                 localY: localCGPoint.y,
                                 screenWidth: currentScreenSize.width)
-                            moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                            Mouse.moveToScreenLocal(x: target.x, y: target.y)
                             appState.mode = .normal(
                                 currentPendingOperation: .none
                             )
@@ -647,7 +654,7 @@ struct NeoMouse: App {
                                 currentPendingOperation: .none
                             )
                         }
-                        rotate(
+                        Gesture.rotate(
                             degrees: appState.degreesToRotate, at: currentCGPoint,
                             incrementsPerGesture:
                                 appState.incrementsPerGesture)
@@ -656,7 +663,7 @@ struct NeoMouse: App {
                         )
                         break
                     case "R":
-                        rotate(
+                        Gesture.rotate(
                             degrees: -appState.degreesToRotate, at: currentCGPoint,
                             incrementsPerGesture:
                                 appState.incrementsPerGesture)
@@ -684,7 +691,7 @@ struct NeoMouse: App {
                         let target = MotionTarget.leftEdge(
                             localY: localCGPoint.y,
                             gridInset: appState.gridInset)
-                        moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                        Mouse.moveToScreenLocal(x: target.x, y: target.y)
                     case "1", "2", "3", "4", "5", "6", "7", "8", "9":
                         guard event.modifierFlags.rawValue == 256 else {
                             return appState.mode = .normal(
@@ -700,13 +707,13 @@ struct NeoMouse: App {
                             localY: localCGPoint.y,
                             screenWidth: currentScreenSize.width,
                             gridInset: appState.gridInset)
-                        moveMouseByExactCoordinatesOnCurrentScreen(x: target.x, y: target.y)
+                        Mouse.moveToScreenLocal(x: target.x, y: target.y)
                         appState.mode = .normal(
                             currentPendingOperation: .none
                         )
                         break
                     case "+":
-                        pinchZoom(
+                        Gesture.pinchZoom(
                             .in, at: currentCGPoint,
                             stepValue: operationCount * appState.zoomStepValue,
                             incrementsPerGesture: appState.incrementsPerGesture)
@@ -715,7 +722,7 @@ struct NeoMouse: App {
                         )
                         break
                     case "-":
-                        pinchZoom(
+                        Gesture.pinchZoom(
                             .out, at: currentCGPoint,
                             stepValue: operationCount * appState.zoomStepValue,
                             incrementsPerGesture: appState.incrementsPerGesture)
@@ -781,9 +788,24 @@ struct NeoMouse: App {
             matching: [.mouseMoved, .leftMouseDragged]
         ) { _ in
             MainActor.assumeIsolated {
-                guard appState.isVisual, let loc = getCurrentMouseLocation() else { return }
+                guard appState.isVisual, let loc = Mouse.location() else { return }
                 appState.endCGXPoint = loc.x
                 appState.endCGYPoint = loc.y
+            }
+        }
+        // Pasteboard watcher tied to NeoMouse activation: it runs only when
+        // mode != .disabled. `@Published`'s projected publisher fires the
+        // current value to new subscribers, so this also sets the correct
+        // initial state. Polling changeCount is the standard macOS clipboard
+        // monitor pattern (Maccy/Flycut/Clipy) — no notification API exists.
+        NeoMouse.modeObserver = appState.$mode.sink { newMode in
+            MainActor.assumeIsolated {
+                if case .disabled = newMode {
+                    NeoMouse.pasteboardWatcher?.invalidate()
+                    NeoMouse.pasteboardWatcher = nil
+                } else if NeoMouse.pasteboardWatcher == nil {
+                    NeoMouse.pasteboardWatcher = Pasteboard.watch { Pasteboard.dump() }
+                }
             }
         }
     }
@@ -936,7 +958,7 @@ struct NeoMouse: App {
             let targetY =
                 appState.gridInset + CGFloat(row) * cellHeight + CGFloat(innerRow)
                 * innerCellHeight + innerCellHeight / 2
-            moveMouseByExactCoordinatesOnCurrentScreen(x: targetX, y: targetY)
+            Mouse.moveToScreenLocal(x: targetX, y: targetY)
             enterNormalMode(appState: appState)
 
         }
@@ -1022,7 +1044,7 @@ final class VisualHighlightOverlay {
     }
     func toggle() {
         guard let appState, appState.isVisual == true else { return }
-        let unionAppKit = cgRectToAppKitRect(getAllScreensBoundingRect())
+        let unionAppKit = Screen.cgToAppKit(Screen.allBoundingRect())
         if window == nil {
             let win = NSWindow(
                 contentRect: unionAppKit,
@@ -1048,8 +1070,8 @@ final class VisualHighlightOverlay {
     // func currentHighlightCGRect() -> CGRect? {
     //         guard state.isVisual, width > 0, height > 0 else { return nil }
     //         return CGRect(
-    //             x: (state. + endX) / 2 - getAllScreensBoundingRect().origin.x,
-    //             y: (startY + endY) / 2 - getAllScreensBoundingRect().origin.y,
+    //             x: (state. + endX) / 2 - Screen.allBoundingRect().origin.x,
+    //             y: (startY + endY) / 2 - Screen.allBoundingRect().origin.y,
     //             width: width,
     //             height: height
     //         )
@@ -1059,7 +1081,7 @@ final class VisualHighlightOverlay {
 struct VisualHighlightOverlayView: View {
     @ObservedObject var state: NeoMouseState
 
-    let currentCGPoint = getCurrentMouseLocation()
+    let currentCGPoint = Mouse.location()
     private var startX: CGFloat { state.startCGXPoint ?? 0 }
     private var startY: CGFloat { state.startCGYPoint ?? 0 }
     private var endX: CGFloat { state.endCGXPoint ?? startX }
@@ -1072,9 +1094,9 @@ struct VisualHighlightOverlayView: View {
         guard state.isVisual, width > 0, height > 0 else { return AnyView(EmptyView()) }
 
         // state.*CG*Point are CG-global. The SwiftUI view's (0,0) is the top-left of the
-        // window, which spans getAllScreensBoundingRect(). Subtract that origin to land
+        // window, which spans Screen.allBoundingRect(). Subtract that origin to land
         // in view-local coords.
-        let unionOrigin = getAllScreensBoundingRect().origin
+        let unionOrigin = Screen.allBoundingRect().origin
         let centerX = (startX + endX) / 2 - unionOrigin.x
         let centerY = (startY + endY) / 2 - unionOrigin.y
 

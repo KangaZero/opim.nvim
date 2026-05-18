@@ -21,16 +21,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let mouseMonitor = NeoMouse.mouseMonitor {
             NSEvent.removeMonitor(mouseMonitor)
             NeoMouse.mouseMonitor = nil
-
         }
+        NeoMouse.modeObserver?.cancel()
+        NeoMouse.modeObserver = nil
+        NeoMouse.pasteboardWatcher?.invalidate()
+        NeoMouse.pasteboardWatcher = nil
 
         // Release any button we may have synthesized .mouseDown for (visual
         // mode does this) so the user doesn't inherit a stuck-drag after quit.
         // mouseUp is safe to post even when nothing is held — the system
         // ignores the event when the button state is already up.
-        if let loc = getCurrentMouseLocation() {
-            mouseUp(.left, at: loc)
-            mouseUp(.right, at: loc)
+        if let loc = Mouse.location() {
+            Mouse.up(.left, at: loc)
+            Mouse.up(.right, at: loc)
         }
 
         if appState.isVisual {

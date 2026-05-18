@@ -8,11 +8,11 @@ The goal is to feel like you never left Vim — mouse control that maps naturall
 
 `neomouse` is a SwiftUI macOS app that installs a global event monitor to intercept keyboard events and translate Vim motions into mouse movements and gestures. It lives in the menu bar (no Dock icon) and runs in the background.
 
-The codebase is a multi-target SwiftPM package: a thin `neomouse` executable that owns the app shell, plus three libraries — `neomouseUtils` (input / screen / window / gesture helpers), `neomouseDB` ([GRDB](https://github.com/groue/GRDB.swift)-backed session and marks store), and `neomouseConfig` ([TOMLDecoder](https://github.com/dduan/TOMLDecoder)-backed runtime configuration). Runtime tuning lives in `settings.toml`, validated against `schema/settings.schema.json`.
+The codebase is a multi-target SwiftPM package: a thin `neomouse` executable that owns the app shell, plus four libraries — `neomouseUtils` (input / screen / pasteboard / gesture helpers, each grouped into a `Mouse` / `Screen` / `Pasteboard` / `Gesture` namespace), `neomouseDB` ([GRDB](https://github.com/groue/GRDB.swift)-backed sessions, marks, registers, macros, jumps, and executed-operation store), `neomouseConfig` ([TOMLDecoder](https://github.com/dduan/TOMLDecoder)-backed runtime configuration), and `neomouseTypes` (shared value types). Runtime tuning lives in `settings.toml`, validated against `schema/settings.schema.json`.
 
 ## Requirements
 
-- **macOS 13 (Ventura) or later**
+- **macOS 14 (Sonoma) or later** — visual-mode screen capture uses `ScreenCaptureKit`, which raises the floor from macOS 13 to 14.
 - **Apple Silicon (arm64).** Intel Macs are not yet supported.
 - **Accessibility permissions** — granted on first run. macOS prompts you; allow `neomouse` in **System Settings → Privacy & Security → Accessibility**, then relaunch.
 
@@ -198,6 +198,16 @@ The repo-root `settings.toml` is a **template**, not auto-loaded. For local dev,
 
 `just check-config` runs Taplo against `schema/settings.schema.json` so schema drift is caught at commit time, not at startup.
 
+### Dev seed
+
+The DB starts with a single seed session ("Cookiezi"). To reinitialise from scratch with extra sessions and randomly-placed marks (useful when exercising mark UX), set `NEOMOUSE_SEED=1`:
+
+```sh
+NEOMOUSE_SEED=1 swift run
+```
+
+This **wipes and re-creates every table** (`forceReIntialize: true`), then runs `seedAll(sessionCount: 3, marksPerSession: 5)`. Do not set this on a database you care about.
+
 ### Debug logging
 
 `debug(...)` in `Sources/neomouseUtils/dev/debug.swift` writes to two independent sinks: **stdout** and **a log file**. Each is gated separately.
@@ -250,26 +260,38 @@ scripts/release.sh           — cut a release (binary + tarball + tag + GitHub 
 scripts/setup-hooks.sh       — one-time hook activation
 
 Sources/neomouse/            — executable target: app shell, modes, overlays
-  NeoMouseApp.swift          — @main entry, NeoMouseState, key/mouse event monitors
+  NeoMouseApp.swift          — @main entry, NeoMouseState, key/mouse/pasteboard monitors
   AppDelegate.swift          — applicationWillTerminate cleanup; .accessory activation policy
   modes/visual.swift         — visual-mode exit + selection-state reset
-  types/mode.swift           — Mode enum (disabled, normal, find, …)
+  types/mode.swift           — Mode enum (disabled, normal, find, command)
   ui/MenuBar.swift           — MenuBarExtra status item (Quit)
   ui/CommandLine.swift       — command-line overlay
   ui/KeyCast.swift           — keycast overlay
+  ui/Alert.swift             — `showFatalAlertAndQuit` (NSAlert + Report Issue + quit)
 
-Sources/neomouseUtils/       — library: input / screen / window / gesture helpers
-  mouse.swift                — moveMouse*, mouseDown/Up/Drag, scroll
-  screen.swift               — multi-display geometry, CG ↔ AppKit rect conversion
+Sources/neomouseUtils/       — library: input / screen / pasteboard / gesture helpers
+  mouse.swift                — `Mouse` namespace: location, moveToGlobal/Screen/Relative, click/down/up/drag, scroll
+  screen.swift               — `Screen` namespace: activeDisplays, currentSize, adjacentRect, allBoundingRect, cgToAppKit
+  pasteboard.swift           — `Pasteboard` namespace: get (read richest content), watch (changeCount polling), dump (debug)
   window.swift               — frontmost-app AX window introspection
   hjkl.swift                 — pure direction → CGVector helper (unit-tested)
   keyCodeToCharMap.swift     — keycode ↔ character lookup table
-  actions/gestures.swift     — pinchZoom, rotate, swipe, smartMagnify
+  actions/gestures.swift     — `Gesture` namespace: pinchZoom, rotate, swipe, smartMagnify
   actions/postGestureEvent.swift — low-level kCGEventGesture poster
   dev/debug.swift            — gated debug logger (see Debug logging above)
 
-Sources/neomouseDB/          — library: GRDB-backed sessions and marks store
+Sources/neomouseDB/          — library: GRDB-backed store
+  AppDatabase.swift          — schema bootstrap, dbQueue, initializeDB(forceReIntialize:)
+  models/Session.swift       — Session (parent of all per-session data)
+  models/Mark.swift          — vim-style marks (`ma` / `'a`) — upsert by (sessionId, mark)
+  models/Register.swift      — vim-style registers; RegisterContent enum (color/image/pasteboardItem/sound/textStorage) archived via NSKeyedArchiver
+  models/Macro.swift         — recorded key sequences
+  models/Jump.swift          — cursor-position jump list
+  models/ExecutedOperation.swift — telemetry of every executed motion / gesture for analysis
+  models/dev/seed.swift      — `seedAll` for dev fixtures (gated by `NEOMOUSE_SEED=1`)
+
 Sources/neomouseConfig/      — library: TOMLDecoder → Config; LoadError; resolution paths
+Sources/neomouseTypes/       — library: shared value types (kept import-light to avoid cycles)
 
 Tests/neomouseTests/         — swift-testing (`import Testing`) suites
 ```
