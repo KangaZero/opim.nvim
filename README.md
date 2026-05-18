@@ -206,7 +206,7 @@ The DB starts with a single seed session ("Cookiezi"). To reinitialise from scra
 NEOMOUSE_SEED=1 swift run
 ```
 
-This **wipes and re-creates every table** (`forceReIntialize: true`), then runs `seedAll(sessionCount: 3, marksPerSession: 5)`. Do not set this on a database you care about.
+This **wipes and re-creates every table** (`forceReIntialize: true`), then runs `seedAll(sessionCount: 3, marksPerSession: 5, registersPerSession: 3)` — extra sessions, randomly-placed marks, and registers `a`–`c` populated with sample `NSPasteboardItem`s. Do not set this on a database you care about.
 
 ### Debug logging
 
@@ -284,7 +284,7 @@ Sources/neomouseDB/          — library: GRDB-backed store
   AppDatabase.swift          — schema bootstrap, dbQueue, initializeDB(forceReIntialize:)
   models/Session.swift       — Session (parent of all per-session data)
   models/Mark.swift          — vim-style marks (`ma` / `'a`) — upsert by (sessionId, mark)
-  models/Register.swift      — vim-style registers; RegisterContent enum (color/image/pasteboardItem/sound/textStorage) archived via NSKeyedArchiver
+  models/Register.swift      — vim-style registers storing `NSPasteboardItem` round-trips (flatten to `[typeRaw: Data]`, archive via NSKeyedArchiver — preserves every type representation of the original yank)
   models/Macro.swift         — recorded key sequences
   models/Jump.swift          — cursor-position jump list
   models/ExecutedOperation.swift — telemetry of every executed motion / gesture for analysis

@@ -1,54 +1,63 @@
 import AppKit
 
-public enum PasteboardContent {
-    case text(String)
-    case sound(NSSound)
-    case richText(Data)  // .rtf raw bytes; decode via NSAttributedString(rtf:)
-    case html(Data)  // .html raw bytes; decode via String(data:encoding:) at the call site
-    case image(NSImage)
-    case files([URL])
-}
-
 /// Namespace for NSPasteboard helpers.
 public enum Pasteboard {
-    /// Read the current general pasteboard and return the richest matching
-    /// content. Order: image → files → rtf → html → sound → plain text.
-    /// Pure read — no side effects.
-    public static func get() -> PasteboardContent? {
-        let pasteboard = NSPasteboard.general
-        guard let types = pasteboard.types else { return nil }
-
-        if types.contains(.png) || types.contains(.tiff) {
-            if let image = NSImage(pasteboard: pasteboard) {
-                return .image(image)
-            }
-        }
-
-        if types.contains(.fileURL) {
-            if let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] {
-                return .files(urls)
-            }
-        }
-
-        if types.contains(.rtf), let rtfData = pasteboard.data(forType: .rtf) {
-            return .richText(rtfData)
-        }
-
-        if types.contains(.html), let htmlData = pasteboard.data(forType: .html) {
-            return .html(htmlData)
-        }
-
-        if types.contains(.sound), let sound = NSSound(pasteboard: pasteboard) {
-            return .sound(sound)
-        }
-
-        if types.contains(.string), let text = pasteboard.string(forType: .string) {
-            return .text(text)
-        }
-
-        return nil
+    /// Return the first item on the general pasteboard, preserving every type
+    /// representation the source app wrote. Pure read — no side effects.
+    ///
+    /// Most copies push a single item with multiple type-reps (e.g. webpage
+    /// selection = `.string` + `.rtf` + `.html` on one item). If you need the
+    /// full list, read `NSPasteboard.general.pasteboardItems` directly.
+    public static func getFirst() -> NSPasteboardItem? {
+        NSPasteboard.general.pasteboardItems?.first
     }
 
+    public static func isEmpty() -> Bool {
+        NSPasteboard.general.pasteboardItems?.isEmpty ?? true
+    }
+
+    /// One-line, human-readable summary of an item — `.string` first N chars
+    /// when present, else a `<binary; types: ...>` tag listing the type-reps.
+    /// Use at debug sites instead of dumping raw `Data` byte counts.
+    public static func preview(_ item: NSPasteboardItem, max: Int = 50) -> String {
+        if let s = item.string(forType: .string) {
+            return s.count > max ? "\(s.prefix(max))…" : s
+        }
+        let types = item.types.map(\.rawValue).joined(separator: ", ")
+        return "<binary; types: \(types)>"
+    }
+
+    /// Flatten every type-rep of `item` into a single archived blob — suitable
+    /// for DB storage, file write, IPC. Round-trip via `toItem(_:)`. Throws if
+    /// the dictionary can't be secure-encoded (shouldn't happen for plain
+    /// `[String: Data]` but preserves NSKeyedArchiver errors).
+    public static func toData(_ item: NSPasteboardItem) throws -> Data {
+        var dict: [String: Data] = [:]
+        for type in item.types {
+            if let data = item.data(forType: type) {
+                dict[type.rawValue] = data
+            }
+        }
+        return try NSKeyedArchiver.archivedData(
+            withRootObject: dict as NSDictionary,
+            requiringSecureCoding: true
+        )
+    }
+
+    /// Inverse of `toData(_:)`. Returns `nil` if the blob doesn't decode to a
+    /// `[String: Data]` dict (corruption or wrong source).
+    public static func toItem(_ data: Data) throws -> NSPasteboardItem? {
+        let classes: [AnyClass] = [NSDictionary.self, NSString.self, NSData.self]
+        guard
+            let dict = try NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: data)
+                as? [String: Data]
+        else { return nil }
+        let item = NSPasteboardItem()
+        for (key, value) in dict {
+            item.setData(value, forType: NSPasteboard.PasteboardType(key))
+        }
+        return item
+    }
     /// Poll `NSPasteboard.general.changeCount` and invoke `onChange` whenever
     /// it ticks. NSPasteboard has no notification API on macOS; polling is the
     /// standard Cocoa pattern (Maccy, Flycut, Clipy, Pasta all do this). 250ms

@@ -1,14 +1,16 @@
+import AppKit
 import Foundation
 import GRDB
 
 import neomouseUtils
 
-/// Dev seed bundle. Inserts a few sessions on top of the default one and
-/// scatters random marks across the current screen. Safe to re-run — Mark.set
-/// upserts on (sessionId, mark).
-public func seedAll(sessionCount: Int = 3, marksPerSession: Int = 5) {
+/// Dev seed bundle. Inserts a few sessions on top of the default one, scatters
+/// random marks across the current screen, and stuffs registers with sample
+/// pasteboard items. Safe to re-run — Mark.set / Register.set both upsert.
+public func seedAll(sessionCount: Int = 3, marksPerSession: Int = 5, registersPerSession: Int = 3) {
     seedSessions(count: sessionCount)
     seedMarks(numberOfMarks: marksPerSession)
+    seedRegisters(count: registersPerSession)
 }
 
 public func seedSessions(count: Int = 3) {
@@ -59,5 +61,27 @@ public func seedMarks(numberOfMarks: Int = 5) {
             endCGYPoint: endY,
             sessionId: sessionId
         )
+    }
+}
+
+public func seedRegisters(count: Int = 3) {
+    let registerNames: [String] = "abcdefghijklmnopqrstuvwxyz".map { String($0) }
+    guard count > 0, count <= registerNames.count else {
+        debug("Invalid register count \(count): must be in 1...\(registerNames.count)")
+        return
+    }
+    guard let session = Session.getLast(), let sessionId = session.id else {
+        debug("seedRegisters: no session in DB; run initializeDB first")
+        return
+    }
+    // Register.set wraps its own dbQueue.write — same reentrancy caveat as seedMarks.
+    for i in 0..<count {
+        let name = registerNames[i]
+        let item = NSPasteboardItem()
+        item.setString("Seed register \"\(name)\"", forType: .string)
+        if let html = "<p>Seed register <b>\"\(name)\"</b></p>".data(using: .utf8) {
+            item.setData(html, forType: .html)
+        }
+        Register.set(register: name, item: item, sessionId: sessionId)
     }
 }

@@ -115,12 +115,14 @@ struct NeoMouse: App {
             return
         }
 
-        // Immediately copy current clipboard contents to "0" register
-        // try Register.set(register: "0", content: , sessionId: currentSession.id!)
-        debug(
-            "clipboardString: \(String(describing: NSPasteboard.general.readObjects(forClasses: [NSString.self], options: nil)?.first))"
-        )
-
+        // Seed register "0" with whatever's on the clipboard at launch.
+        if let currentPasteboardItem = Pasteboard.getFirst() {
+            Register.set(
+                register: "0",
+                item: currentPasteboardItem,
+                sessionId: currentSession.id!)
+            debug("Pasteboard: \(Pasteboard.preview(currentPasteboardItem))")
+        }
         debug("currentSession: \(String(describing: currentSession))")
         let _allScreensBoundingRect = Screen.allBoundingRect()
         debug("allScreensRect: \(String(describing: _allScreensBoundingRect))")
@@ -804,7 +806,12 @@ struct NeoMouse: App {
                     NeoMouse.pasteboardWatcher?.invalidate()
                     NeoMouse.pasteboardWatcher = nil
                 } else if NeoMouse.pasteboardWatcher == nil {
-                    NeoMouse.pasteboardWatcher = Pasteboard.watch { Pasteboard.dump() }
+                    NeoMouse.pasteboardWatcher = Pasteboard.watch {
+                        Pasteboard.dump()
+                        if let item = Pasteboard.getFirst() {
+                            debug("Clipboard changed: \(Pasteboard.preview(item))")
+                        }
+                    }
                 }
             }
         }

@@ -69,7 +69,6 @@ public func initializeDB(forceReIntialize: Bool = false) {
             try db.create(table: "register") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("register", .text).notNull()
-                t.column("contentType", .text).notNull()
                 t.column("content", .blob).notNull()
                 t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
                 t.belongsTo("session", onDelete: .cascade).notNull()
