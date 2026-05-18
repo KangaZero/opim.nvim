@@ -18,12 +18,15 @@ public func initializeDB(forceReIntialize: Bool = false) {
         try dbQueue.write { db in
             let isTablesExist =
                 try db.tableExists("session") && db.tableExists("mark")
-                && db.tableExists("operation")
+                && db.tableExists("register") && db.tableExists("executed_operation")
+                && db.tableExists("jump") && db.tableExists("macro")
             if isTablesExist && !forceReIntialize {
                 debug("Tables already exist, skipping initialization.")
                 return
             }
-            let tables = ["executed_operation", "mark", "session", "macro"]
+            // Drop child tables before `session`. FK cascade would handle it,
+            // but explicit order keeps reinit deterministic.
+            let tables = ["executed_operation", "jump", "macro", "register", "mark", "session"]
             for table in tables {
                 try db.execute(sql: "DROP TABLE IF EXISTS \(table)")
                 debug("Dropped table \(table) if it existed")
@@ -63,6 +66,20 @@ public func initializeDB(forceReIntialize: Bool = false) {
             }
             debug("Created 'mark' table")
 
+            try db.create(table: "register") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("register", .text).notNull()
+                t.column("contentType", .text).notNull()
+                t.column("content", .blob).notNull()
+                t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+                t.belongsTo("session", onDelete: .cascade).notNull()
+                // Vim semantics: per session, each register name is unique. Lets
+                // Register.set rely on a single (sessionId, register) lookup, and
+                // makes duplicates impossible at the SQL level (not just app code).
+                t.uniqueKey(["sessionId", "register"])
+            }
+            debug("Created 'register' table")
+
             try db.create(table: "executed_operation") { t in
                 t.autoIncrementedPrimaryKey("id")
                 t.column("name", .text).notNull()
@@ -77,6 +94,15 @@ public func initializeDB(forceReIntialize: Bool = false) {
                 t.belongsTo("session", onDelete: .cascade).notNull()
             }
             debug("Created 'executed_operation' table")
+
+            try db.create(table: "jump") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("CGXPoint", .double)
+                t.column("CGYPoint", .double)
+                t.column("createdAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+                t.belongsTo("session", onDelete: .cascade).notNull()
+            }
+            debug("Created 'jump' table")
 
             try db.create(table: "macro") { t in
                 t.autoIncrementedPrimaryKey("id")

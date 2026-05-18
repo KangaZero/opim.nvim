@@ -92,7 +92,12 @@ struct NeoMouse: App {
         //TODO add checks to make sure no unintended behavior of out of bounds access happens
         // eg.. gridDivisions * gridDivisions <=findModeGridDivisionCharacters.count, and similar for
         // innerGridDivisions
-        initializeDB(forceReIntialize: false)
+        // Dev seed gate. Run with `NEOMOUSE_SEED=1 swift run` to force reinitialization of the DB and seeding of extra sessions and marks. This is useful for testing and development, but should not be used in production as it will delete existing data.
+        initializeDB(forceReIntialize: ProcessInfo.processInfo.environment["NEOMOUSE_SEED"] == "1" ? true : false)
+        // extra sessions + random marks. No-op otherwise.
+        if ProcessInfo.processInfo.environment["NEOMOUSE_SEED"] == "1" {
+            seedAll()
+        }
         appState.currentSession = Session.getLast()
         guard let currentSession = appState.currentSession else {
             debug("No session was found")

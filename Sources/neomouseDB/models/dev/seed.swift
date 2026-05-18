@@ -3,54 +3,61 @@ import GRDB
 
 import neomouseUtils
 
-func seedSession(session: Session) {
+/// Dev seed bundle. Inserts a few sessions on top of the default one and
+/// scatters random marks across the current screen. Safe to re-run — Mark.set
+/// upserts on (sessionId, mark).
+public func seedAll(sessionCount: Int = 3, marksPerSession: Int = 5) {
+    seedSessions(count: sessionCount)
+    seedMarks(numberOfMarks: marksPerSession)
+}
+
+public func seedSessions(count: Int = 3) {
     do {
         try dbQueue.write { db in
-            for i in 0..<5 {
-                var newSession = Session(id: Int64(i), name: "Seed \(i)", createdAt: Date(), updatedAt: Date())
+            for i in 1...count {
+                var newSession = Session(
+                    name: "Seed \(i)",
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
                 try newSession.insert(db)
             }
         }
     } catch {
-        debug("Seed Session error: ", error)
+        debug("seedSessions error: ", error)
     }
 }
 
-func seedMark(numberOfMarks: Int = 5) {
-    let markCharacters: [String] = "0123456789abcdefghijklmnopqrstuvwxyz".map {
-        String($0)
-    }
+public func seedMarks(numberOfMarks: Int = 5) {
+    let markCharacters: [String] = "0123456789abcdefghijklmnopqrstuvwxyz".map { String($0) }
     guard numberOfMarks > 0, numberOfMarks <= markCharacters.count else {
-        debug(
-            "Invalid numberOfMarks \(numberOfMarks): must be in 1...\(markCharacters.count)")
+        debug("Invalid numberOfMarks \(numberOfMarks): must be in 1...\(markCharacters.count)")
         return
     }
-
     guard let currentScreen = getCurrentScreenSize() else {
-        debug("Could not get current screen size in seedMark")
+        debug("Could not get current screen size in seedMarks")
         return
     }
-    do {
-        try dbQueue.write { db in
-            for i in 0..<numberOfMarks {
-                let startX = Double.random(in: 0...currentScreen.width)
-                let startY = Double.random(in: 0...currentScreen.height)
-                let endX = Double.random(in: 0...currentScreen.width)
-                let endY = Double.random(in: 0...currentScreen.height)
-                let isVisual = Int.random(in: 1..<2) == 1 ? true : false
-                Mark.set(
-                    mark: markCharacters[i],
-                    isVisual: isVisual,
-                    startCGXPoint: isVisual ? startX : nil,
-                    startCGYPoint: isVisual ? startY : nil,
-                    endCGXPoint: endX,
-                    endCGYPoint: endY,
-                    sessionId: 1
-                )
-            }
-        }
-    } catch {
-        debug("Seed Mark error: ", error)
+    guard let session = Session.getLast(), let sessionId = session.id else {
+        debug("seedMarks: no session in DB; run initializeDB first")
+        return
     }
-
+    // Mark.set wraps its own dbQueue.write — do NOT wrap this loop in another
+    // write or GRDB will trip on reentrancy.
+    for i in 0..<numberOfMarks {
+        let startX = Double.random(in: 0...currentScreen.width)
+        let startY = Double.random(in: 0...currentScreen.height)
+        let endX = Double.random(in: 0...currentScreen.width)
+        let endY = Double.random(in: 0...currentScreen.height)
+        let isVisual = Bool.random()
+        Mark.set(
+            mark: markCharacters[i],
+            isVisual: isVisual,
+            startCGXPoint: isVisual ? startX : nil,
+            startCGYPoint: isVisual ? startY : nil,
+            endCGXPoint: endX,
+            endCGYPoint: endY,
+            sessionId: sessionId
+        )
+    }
 }

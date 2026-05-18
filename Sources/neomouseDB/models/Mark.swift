@@ -46,6 +46,21 @@ public struct Mark: Codable, Identifiable, FetchableRecord, MutablePersistableRe
             return nil
         }
     }
+
+    public static func getAll(
+        sessionId: Int64
+    ) -> [Mark]? {
+        do {
+            return try dbQueue.read { db in
+                try Mark
+                    .filter(Mark.Columns.sessionId == sessionId)
+                    .fetchAll(db)
+            }
+        } catch {
+            debug("Mark - getAll error: ", error)
+            return nil
+        }
+    }
     /// Upsert a mark by (sessionId, mark). Matches Vim's `ma` overwrite semantics:
     /// pressing `ma` twice from different positions keeps the second position, not
     /// two rows. If an existing mark with the same (sessionId, mark) is found, its
