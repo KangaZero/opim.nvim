@@ -52,15 +52,22 @@ public struct Register: Codable, Identifiable, FetchableRecord, MutablePersistab
         }
     }
 
-    public static func get(register: String, sessionId: Int64) -> NSPasteboardItem? {
+    public static func get(register: String, sessionId: Int64) -> Register? {
         do {
+            guard
+                register.count == 1,
+                register.first!.isLetter == true || register.first!.isNumber == true
+            else {
+                debug("Register - get: Invalid register \(register). registers must be a single letter or number.")
+                return nil
+            }
             let row = try dbQueue.read { db in
                 try Register
                     .filter(Columns.sessionId == sessionId)
                     .filter(Columns.register == register)
                     .fetchOne(db)
             }
-            return row?.pasteboardItem
+            return row
         } catch {
             debug("Register.get error: ", error)
             return nil
@@ -84,6 +91,13 @@ public struct Register: Codable, Identifiable, FetchableRecord, MutablePersistab
     /// Vim's `"ay` overwrite semantics — one row per (session, register name).
     public static func set(register: String, item: NSPasteboardItem, sessionId: Int64) {
         do {
+            guard
+                register.count == 1,
+                register.first!.isLetter == true || register.first!.isNumber == true
+            else {
+                return debug(
+                    "Register - get: Invalid register \(register). registers must be a single letter or number.")
+            }
             let data = try encode(item)
             try dbQueue.write { db in
                 if var existing =

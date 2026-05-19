@@ -22,6 +22,8 @@ public enum NormalModePendingOperation: Equatable {
     case goToMark
     // ``` pressed, awaiting set mark to go to exact location with exact visual state for said mark
     case goToMarkExactState
+    case goToRegister  // " pressed, awaiting register name to go to
+    case registerAction(register: String)
     //TODO nice to have
     // case setMacro // 'q' pressed, awaiting macro name
     // case goToMacro // '@' pressed, awaiting set macro name to go to

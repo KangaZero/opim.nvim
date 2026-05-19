@@ -111,4 +111,4 @@ public func buildKeyCodeMap() -> [String: UInt16] {
     return map
 }
 
-public let keyCodeToCharMap = buildKeyCodeMap()
+public let charToKeyCodeMap = buildKeyCodeMap()

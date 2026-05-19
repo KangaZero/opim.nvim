@@ -95,8 +95,8 @@ struct NeoMouse: App {
         //TODO add checks to make sure no unintended behavior of out of bounds access happens
         // eg.. gridDivisions * gridDivisions <=findModeGridDivisionCharacters.count, and similar for
         // innerGridDivisions
-        // Dev seed gate. Run with `NEOMOUSE_SEED=1 swift run` to force reinitialization of the DB and seeding of extra sessions and marks. This is useful for testing and development, but should not be used in production as it will delete existing data.
-        initializeDB(forceReIntialize: ProcessInfo.processInfo.environment["NEOMOUSE_SEED"] == "1" ? true : false)
+        // Dev seed gate. Run with `FORCE_REINTIALIZE=1 swift run` to force reinitialization of the DB and seeding of extra sessions and marks. This is useful for testing and development, but should not be used in production as it will delete existing data.
+        initializeDB(forceReIntialize: ProcessInfo.processInfo.environment["FORCE_REINTIALIZE"] == "1" ? true : false)
         // extra sessions + random marks. No-op otherwise.
         if ProcessInfo.processInfo.environment["NEOMOUSE_SEED"] == "1" {
             seedAll()
@@ -173,7 +173,7 @@ struct NeoMouse: App {
                 } else {
                     operationCount = 1
                 }
-                let _key = keyCodeToCharMap.first(where: { $0.value == event.keyCode })?.key ?? "?"
+                let _key = charToKeyCodeMap.first(where: { $0.value == event.keyCode })?.key ?? "?"
                 debug(
                     """
                     [keyDown]
@@ -209,7 +209,7 @@ struct NeoMouse: App {
                     }
                 case .normal(let currentPendingNormalOperation):
                     switch event.keyCode {
-                    case keyCodeToCharMap["Esc"]:
+                    case charToKeyCodeMap["Esc"]:
                         guard event.modifierFlags.rawValue == 256 else {
                             break
                         }
@@ -235,7 +235,7 @@ struct NeoMouse: App {
                             appState.mode = .normal(
                                 currentPendingOperation: .none
                             )
-                            debug("setMark mark contains a non-shift modifiers")
+                            debug("setMark mark contains a non-shift modifier")
                             return
                         }
                         Mark.set(
@@ -259,7 +259,7 @@ struct NeoMouse: App {
                             appState.mode = .normal(
                                 currentPendingOperation: .none
                             )
-                            debug("goToMark mark contains a non-shift modifiers")
+                            debug("goToMark mark contains a non-shift modifier")
                             return
                         }
                         guard let mark = Mark.get(mark: event.characters!, sessionId: currentSession.id!) else {
@@ -284,6 +284,83 @@ struct NeoMouse: App {
                         Mouse.moveToGlobal(
                             x: mark.endCGXPoint,
                             y: mark.endCGYPoint)
+                        appState.mode = .normal(
+                            currentPendingOperation: .none
+                        )
+                        return
+                    case .goToRegister:
+                        guard
+                            event.modifierFlags.rawValue == 256
+                                || event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift
+                        else {
+                            appState.mode = .normal(
+                                currentPendingOperation: .none
+                            )
+                            debug("goToRegister register contains a non-shift modifier")
+                            return
+                        }
+                        appState.mode = .normal(currentPendingOperation: .registerAction(register: event.characters!))
+                        return
+                    case .registerAction:
+                        guard
+                            (event.modifierFlags.rawValue == 256
+                                || event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift),
+                            case .normal(.registerAction(let activeRegister)) = appState.mode
+                        else {
+                            appState.mode = .normal(
+                                currentPendingOperation: .none
+                            )
+                            debug("registerAction register contains a non-shift modifier or no activeRegister")
+                            return
+                        }
+                        switch event.characters {
+                        // case "c", "x":
+                        //     guard
+                        //         event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                        //             == .command
+                        //     else {
+                        //         break
+                        //     }
+                        //
+                        //     break
+                        case "y", "Y":
+                            System.simulate(.copy)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                if let pasteboardItem = NSPasteboard.general.pasteboardItems?.first {
+                                    debug("Copied item to clipboard: \(Pasteboard.preview(pasteboardItem))")
+                                    Register.set(
+                                        register: activeRegister, item: pasteboardItem, sessionId: currentSession.id!)
+                                }
+                            }
+                            break
+                        case "d", "D":
+                            System.simulate(.cut)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                if let pasteboardItem = NSPasteboard.general.pasteboardItems?.first {
+                                    debug(
+                                        "Copied item to clipboard from deletion: \(Pasteboard.preview(pasteboardItem))")
+                                    Register.set(
+                                        register: activeRegister, item: pasteboardItem, sessionId: currentSession.id!)
+                                }
+                            }
+                            break
+                        case "p", "P":
+                            guard
+                                let item = Register.get(register: activeRegister, sessionId: currentSession.id!)?
+                                    .pasteboardItem
+                            else {
+                                debug("paste: register '\(activeRegister)' empty")
+                                break
+                            }
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.writeObjects([item])
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                System.simulate(.paste)
+                            }
+                            break
+                        default:
+                            break
+                        }
                         appState.mode = .normal(
                             currentPendingOperation: .none
                         )
@@ -390,7 +467,7 @@ struct NeoMouse: App {
                             currentPendingOperation: .goToMark
                         )
                         break
-                    case "`":  //goToMarkExact
+                    case "`":  //goToMarkExactState
                         guard event.modifierFlags.rawValue == 256 else {
                             return appState.mode = .normal(
                                 currentPendingOperation: .none
@@ -400,7 +477,20 @@ struct NeoMouse: App {
                             currentPendingOperation: .goToMarkExactState
                         )
                         break
-                    //INFO: No need to do modifierFlags checks for captizalized chars, as a
+                    case "\"":
+                        guard event.charactersIgnoringModifiers == "\"" else {
+                            debug(
+                                "Expected '\"' for register operations, got \(String(describing: event.charactersIgnoringModifiers))"
+                            )
+                            return appState.mode = .normal(
+                                currentPendingOperation: .none
+                            )
+                        }
+                        appState.mode = .normal(
+                            currentPendingOperation: .goToRegister
+                        )
+                        break
+                    // INFO: No need to do modifierFlags checks for captizalized chars, as a
                     //modifierFlag will trigger the lowercase char equivalent
                     case "G":
                         let target = MotionTarget.bottom(
@@ -582,6 +672,22 @@ struct NeoMouse: App {
                                 if isCopiedToPasteBoard {
                                     ToastManager.shared.show("Screenshot copied to clipboard")
                                 }
+
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                    if case .normal(.registerAction(let activeRegister)) = appState.mode,
+                                        let pasteboardItem = NSPasteboard.general.pasteboardItems?.first
+                                    {
+                                        Register.set(
+                                            register: activeRegister,
+                                            item: pasteboardItem,
+                                            sessionId: currentSession.id!
+                                        )
+                                        debug(
+                                            "Copied screenshot item to register '\(activeRegister)': \(Pasteboard.preview(pasteboardItem))"
+                                        )
+                                    }
+                                }
+
                                 appState.mode = .normal(currentPendingOperation: .none)
                                 appState.isVisual = false
                             } catch {
@@ -736,7 +842,7 @@ struct NeoMouse: App {
                     }
                 case .find:
                     switch event.keyCode {
-                    case keyCodeToCharMap["Esc"]:
+                    case charToKeyCodeMap["Esc"]:
                         guard event.modifierFlags.rawValue == 256 else {
                             break
                         }
@@ -841,7 +947,7 @@ struct NeoMouse: App {
             return
         }
         //First get the convert of the keyCode to its equivalent character (as String)
-        let keyCodeAsChar: String? = keyCodeToCharMap.first(where: {
+        let keyCodeAsChar: String? = charToKeyCodeMap.first(where: {
             $0.value == event.keyCode
         })?.key
         // debug(
