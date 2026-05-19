@@ -38,7 +38,10 @@ degrees_to_rotate = 90.0
 available = ["numbers", "relativenumbers", "delmarks"]
 
 [configuration]
+is_disable_key_input = true # When true, Keyboard input for most keys except 
 max_session_count = 10
+max_operations_per_session= 1000 #similar to vim.opt.history 
+max_jumps_per_session = 100
 new_session_on_open = true
 #
 # [keymap]

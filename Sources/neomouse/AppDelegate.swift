@@ -7,17 +7,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Fires after NSApp exists but before SwiftUI evaluates `body` and
         // builds scenes — the right window to suppress the auto-injected
-        // empty Settings scene that .regular policy would otherwise surface.
+        // https://developer.apple.com/documentation/appkit/nsapplication/activationpolicy-swift.enum
         NSApp.setActivationPolicy(.accessory)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         let appState = NeoMouse.sharedState
 
-        if let keyMonitor = NeoMouse.keyMonitor {
-            NSEvent.removeMonitor(keyMonitor)
-            NeoMouse.keyMonitor = nil
+        if let tap = NeoMouse.keyEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if let src = NeoMouse.keyEventTapRunLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetCurrent(), src, .commonModes)
+                NeoMouse.keyEventTapRunLoopSource = nil
+            }
+            NeoMouse.keyEventTap = nil
         }
+        NeoMouse.keyHandler = nil
         if let mouseMonitor = NeoMouse.mouseMonitor {
             NSEvent.removeMonitor(mouseMonitor)
             NeoMouse.mouseMonitor = nil
@@ -42,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 visualHighlightOverlay: VisualHighlightOverlay.shared)
         }
         GridOverlay.shared.hideGrid()
+
         appState.mode = .disabled
         appState.startCGXPoint = nil
         appState.startCGYPoint = nil

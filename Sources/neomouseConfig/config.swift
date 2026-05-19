@@ -15,6 +15,7 @@ public struct Config: Decodable, Sendable {
     public let visual: Visual
     public let gesture: Gesture
     public let commands: Commands
+    public let configuration: Configuration
 
     public struct Grid: Decodable, Sendable {
         public let inset: CGFloat
@@ -25,6 +26,15 @@ public struct Config: Decodable, Sendable {
         public let findModeCharacters: String
         public let findModeInnerCharacters: String
         public let isAlwaysShowInnerCharacters: Bool
+
+        // Fallback values when settings.toml is absent / missing the section.
+        // Update here; the NeoMouseState init no longer carries its own copy.
+        public static let defaultInset: CGFloat = 10
+        public static let defaultDivisions: Int = 5
+        public static let defaultInnerDivisions: Int = 3
+        public static let defaultFindModeCharacters = "abcdefghijklmnopqrstuvwxyz"
+        public static let defaultFindModeInnerCharacters = "abcdefghijklmnopqrstuvwxyz"
+        public static let defaultIsAlwaysShowInnerCharacters = true
     }
 
     public struct Motion: Decodable, Sendable {
@@ -32,20 +42,50 @@ public struct Config: Decodable, Sendable {
         public let rangeX: CGFloat
         public let rangeY: CGFloat
         public let isClampCursorToCurrentScreen: Bool
+
+        public static let defaultLinesOnScreen: Int = 50
+        public static let defaultRangeX: CGFloat = 20
+        public static let defaultRangeY: CGFloat = 20
+        public static let defaultIsClampCursorToCurrentScreen = false
     }
 
     public struct Visual: Decodable, Sendable {
         public let minimumHighlightWidth: Int
+
+        public static let defaultMinimumHighlightWidth: Int = 5
     }
 
     public struct Gesture: Decodable, Sendable {
         public let zoomStepValue: Double
         public let incrementsPerGesture: UInt
         public let degreesToRotate: Double
+
+        public static let defaultZoomStepValue: Double = 0.1
+        public static let defaultIncrementsPerGesture: UInt = 5
+        public static let defaultDegreesToRotate: Double = 90
     }
 
     public struct Commands: Decodable, Sendable {
-        public let available: [String]
+        public let available: [Command]
+        /// Single source of truth for the fallback list when settings.toml is
+        /// missing or has no `[commands]` section. Update here; nowhere else.
+        public static let defaultAvailable: [Command] = [.numbers, .relativenumbers]
+    }
+
+    public enum Command: String, Decodable, Sendable {
+        case numbers
+        case relativenumbers
+        case delmarks
+    }
+
+    public struct Configuration: Decodable, Sendable {
+        public let isDisableKeyInput: Bool
+        public let maxSessionCount: UInt
+        public let newSessionOnOpen: Bool
+
+        public static let defaultIsDisableKeyInput: Bool = true
+        public static let defaultMaxSessionCount: UInt = 10
+        public static let defaultNewSessionOnOpen: Bool = false
     }
 }
 
