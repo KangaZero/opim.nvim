@@ -176,7 +176,7 @@ struct NeoMouse: App {
                     _currentCGPoint.flatMap { pt in
                         Screen.activeDisplays().first(where: { CGDisplayBounds($0).contains(pt) })
                             .map { CGDisplayBounds($0) }
-                    } ?? Screen.mainRect()
+                    } ?? CGDisplayBounds(CGMainDisplayID())
                 guard let currentCGPoint = _currentCGPoint,
                     let currentScreenSize = _currentScreenSize
                     // let currentDisplayBounds = _currentDisplayBounds
@@ -588,6 +588,16 @@ struct NeoMouse: App {
                         appState.mode = .command(command: "", suggestionIndex: nil)
                         CommandLine.shared.passAppState(state: appState)
                         CommandLine.shared.toggle()
+                        break
+
+                    case "s":
+                        guard event.modifierFlags.rawValue == 256 else {
+                            return appState.mode = .normal(
+                                currentPendingOperation: .none
+                            )
+                        }
+                        //TODO check if numbers or relativenumbers is enabled
+                        NumbersOverlay.shared.snapCursor()
                         break
                     // INFO: No need to do modifierFlags checks for captizalized chars, as a
                     //modifierFlag will trigger the lowercase char equivalent

@@ -10,9 +10,9 @@ public enum Screen {
         return displays
     }
 
-    public static func mainRect() -> CGRect {
-        activeDisplays().first.map { CGDisplayBounds($0) } ?? .zero
-    }
+    // public static func mainRect() -> CGRect {
+    //     activeDisplays().first.map { CGDisplayBounds($0) } ?? .zero
+    // }
 
     /// Size of the screen currently under the cursor.
     public static func currentSize() -> CGSize? {
@@ -24,7 +24,7 @@ public enum Screen {
             return currentSize
         } else {
             debug("Screen.currentSize: could not find display under cursor; defaulting to main display size")
-            return mainRect().size
+            return CGDisplayBounds(CGMainDisplayID()).size
         }
     }
 

@@ -98,6 +98,7 @@ final class NumbersOverlay {
         model.linesOnScreen = max(1, appState.linesOnScreen)
         anchorWindow(to: currentScreen)
         recomputeIndices(mouseLocation: NSEvent.mouseLocation)
+        reanchorIfNeeded(mouseLocation: NSEvent.mouseLocation)
 
         if window == nil {
             let win = NSWindow(
@@ -125,6 +126,53 @@ final class NumbersOverlay {
     func hide() {
         window?.orderOut(nil)
         removeMouseMonitor()
+    }
+
+    /// Warp the cursor to the centre of the cell currently highlighted by
+    /// the overlay (`currentLineIndex`, `currentColumnIndex`). Used as the
+    /// "snap to ruler cell" action — e.g. after the user picks a target with
+    /// the relative-number ruler on screen.
+    ///
+    /// Coordinate-system notes: `visibleFrame` is in AppKit space
+    /// (origin bottom-left, y increases upward). `Mouse.moveToGlobal` expects
+    /// CG global coords (origin top-left of the primary display, y increases
+    /// downward). We compute the cell centre in AppKit space first, then
+    /// flip once at the end against the primary screen's height.
+    func snapCursor() {
+        guard let screen = anchoredScreen else {
+            debug("NumbersOverlay.snap: no anchored screen")
+            return
+        }
+        // Always refresh indices from the live cursor position. In .relative
+        // mode the mouse monitor keeps them current already, but in
+        // .absolute mode they're frozen at show-time — so without this call,
+        // snap would warp back to wherever the cursor was when the user
+        // opened the ruler instead of where it is now.
+        recomputeIndices(mouseLocation: NSEvent.mouseLocation)
+
+        let lineCount = max(1, model.linesOnScreen)
+        let colCount = max(1, model.columnsOnScreen)
+        let visible = screen.visibleFrame  // AppKit coords
+        let rowHeight = visible.height / CGFloat(lineCount)
+        let colWidth = visible.width / CGFloat(colCount)
+
+        // Cell centre in AppKit coords. Row index counts down from the top
+        // of the visible frame (i.e. starts at visible.maxY).
+        let row = CGFloat(model.currentLineIndex)
+        let col = CGFloat(model.currentColumnIndex)
+        let appKitX = visible.minX + (col + 0.5) * colWidth
+        let appKitY = visible.maxY - (row + 0.5) * rowHeight
+
+        // AppKit → CG conversion uses the primary screen's height. AppKit's
+        // global origin is the bottom-left of the screen whose `frame.origin`
+        // is (0, 0), which is always `NSScreen.screens[0]` on macOS.
+        guard let primary = NSScreen.screens.first else {
+            debug("NumbersOverlay.snap: no primary screen")
+            return
+        }
+        let cgY = primary.frame.height - appKitY
+
+        Mouse.moveToGlobal(x: appKitX, y: cgY)
     }
 
     // MARK: - Internals
