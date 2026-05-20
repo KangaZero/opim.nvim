@@ -69,18 +69,27 @@ extension NeoMouse {
                             let hasSystemMod =
                                 mods.contains(.command) || mods.contains(.control) || mods.contains(.option)
                             let keyCode = nsEvent.keyCode
+                            //IMPORTANT: Disable specialKeys when in command or menu mode as these keys will be used
                             let isSpecialKey: Bool = {
+                                if case .command = state.mode { return true }
+                                if case .menu = state.mode { return true }
                                 switch keyCode {
                                 case charToKeyCodeMap["Tab"], charToKeyCodeMap["Backspace"], charToKeyCodeMap["Return"],
                                     charToKeyCodeMap["Enter"],
                                     charToKeyCodeMap["Esc"], charToKeyCodeMap["LeftArrow"],
                                     charToKeyCodeMap["RightArrow"],
-                                    charToKeyCodeMap["DownArrow"], charToKeyCodeMap["UpArrow"],
-                                    charToKeyCodeMap["Fn"], charToKeyCodeMap["F1"], charToKeyCodeMap["F2"],
-                                    charToKeyCodeMap["F3"], charToKeyCodeMap["F4"], charToKeyCodeMap["F5"],
-                                    charToKeyCodeMap["F6"], charToKeyCodeMap["F7"], charToKeyCodeMap["F8"],
-                                    charToKeyCodeMap["F9"], charToKeyCodeMap["F10"], charToKeyCodeMap["F11"],
-                                    charToKeyCodeMap["F12"],
+                                    charToKeyCodeMap["DownArrow"], charToKeyCodeMap["UpArrow"]:
+                                    return true
+                                default:
+                                    return false
+                                }
+                            }()
+                            let isFKey: Bool = {
+                                switch keyCode {
+                                case charToKeyCodeMap["F1"], charToKeyCodeMap["F2"], charToKeyCodeMap["F3"],
+                                    charToKeyCodeMap["F4"], charToKeyCodeMap["F5"], charToKeyCodeMap["F6"],
+                                    charToKeyCodeMap["F7"], charToKeyCodeMap["F8"], charToKeyCodeMap["F9"],
+                                    charToKeyCodeMap["F10"], charToKeyCodeMap["F11"], charToKeyCodeMap["F12"],
                                     charToKeyCodeMap["F13"], charToKeyCodeMap["F14"], charToKeyCodeMap["F15"],
                                     charToKeyCodeMap["F16"], charToKeyCodeMap["F17"], charToKeyCodeMap["F18"],
                                     charToKeyCodeMap["F19"], charToKeyCodeMap["F20"]:
@@ -90,7 +99,7 @@ extension NeoMouse {
                                 }
                             }()
                             // keycodes above 128 are non-standard so they are allowed to pass through
-                            if hasSystemMod || isSpecialKey || keyCode >= 128 {
+                            if hasSystemMod || isSpecialKey || isFKey || keyCode >= 128 {
                                 // Notify neomouse AND let the OS see the key. Side-effect:
                                 // app may also react (e.g. Esc closes its picker). Accepted
                                 // tradeoff so Cmd-E / Esc / Ctrl-W keep working as neomouse

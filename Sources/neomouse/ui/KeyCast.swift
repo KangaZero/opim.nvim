@@ -78,8 +78,9 @@ private struct KeyCastView: View {
         switch state.mode {
         case .normal(let op): return "\(op)"
         case .find(let op, _): return op
-        case .command(let op): return op
+        case .command(let op, _): return op
         case .disabled: return nil
+        case .menu: return nil
         }
     }
 

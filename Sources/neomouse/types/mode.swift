@@ -41,6 +41,11 @@ enum Mode {
     )
     // case visualFind
     case command(
-        command: String
+        command: String,
+        // Highlighted suggestion in the wildmenu list. nil = no selection;
+        // Tab / Shift-Tab cycle this index round-robin through filtered hits.
+        // Typing a character resets to nil.
+        suggestionIndex: Int?
     )
+    case menu
 }

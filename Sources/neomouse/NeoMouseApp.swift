@@ -559,7 +559,7 @@ struct NeoMouse: App {
                                 currentPendingOperation: .none
                             )
                         }
-                        appState.mode = .command(command: "")
+                        appState.mode = .command(command: "", suggestionIndex: nil)
                         CommandLine.shared.passAppState(state: appState)
                         CommandLine.shared.toggle()
                         break
@@ -951,7 +951,8 @@ struct NeoMouse: App {
                             event: event, appState: appState, currentScreenSize: currentScreenSize)
                         break
                     }
-                case .command(let currentCommand):
+                case .command(let currentCommand, let suggestionIndex):
+                    //TODO change to switch case statement
                     // Esc → exit command mode back to normal.
                     if event.keyCode == charToKeyCodeMap["Esc"], event.modifierFlags.rawValue == 256 {
                         HelpDialog.shared.hide()
@@ -969,9 +970,35 @@ struct NeoMouse: App {
                         appState.mode = .normal(currentPendingOperation: .none)
                         return
                     }
-                    // Backspace → drop last char.
+                    // Backspace → drop last char + reset selection (filter changes).
                     if event.keyCode == charToKeyCodeMap["Backspace"] {
-                        appState.mode = .command(command: String(currentCommand.dropLast()))
+                        appState.mode = .command(
+                            command: String(currentCommand.dropLast()),
+                            suggestionIndex: nil
+                        )
+                        return
+                    }
+                    // Tab / Shift-Tab → round-robin cycle through filtered hits.
+                    // Mirrors nvim wildmenu: list always visible, Tab moves
+                    // the highlight; the command text itself doesn't change
+                    // until the user accepts via Enter.
+                    if event.keyCode == charToKeyCodeMap["Tab"] {
+                        let matches =
+                            currentCommand.isEmpty
+                            ? appState.commands
+                            : appState.commands.filter { $0.localizedCaseInsensitiveContains(currentCommand) }
+                        guard !matches.isEmpty else { return }
+                        let isReverse = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift
+                        let next: Int
+                        if let cur = suggestionIndex {
+                            next =
+                                isReverse
+                                ? (cur - 1 + matches.count) % matches.count
+                                : (cur + 1) % matches.count
+                        } else {
+                            next = isReverse ? matches.count - 1 : 0
+                        }
+                        appState.mode = .command(command: currentCommand, suggestionIndex: next)
                         return
                     }
                     // Plain key: append. Allow Shift for capitals, reject
@@ -984,15 +1011,25 @@ struct NeoMouse: App {
                     else { return }
                     // IMPORTANT: write back to appState.mode so @Published fires
                     // and the SwiftUI CommandLineView redraws. Mutating a local
-                    // `var currentCommand` only touches a snapshot.
-                    appState.mode = .command(command: currentCommand + character)
+                    // `var currentCommand` only touches a snapshot. Typing
+                    // resets the cycle position.
+                    appState.mode = .command(
+                        command: currentCommand + character,
+                        suggestionIndex: nil
+                    )
                     return
                 // default:
                 //     debug(
                 //         "Should not happen: Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode)"
                 //     )
                 //     break
+                case .menu:
+                    switch event.keyCode {
+                    default:
+                        break
+                    }
                 }
+
                 //INFO: after every non-integer keypress, excluding 0 which can be both a command and a count, we reset the operationCountAsString to nil to reset the count for the next operation
                 //Non-integer keypress generally needs to break at the end, while integer keypress will return early before reaching this point, so the operationCountAsString is only updated for integer keypress and reset for non-integer keypress
                 switch appState.mode {

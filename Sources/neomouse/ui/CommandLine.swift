@@ -38,22 +38,30 @@ final class CommandLine {
             )
         }
         let panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 300, height: 60),
-            styleMask: [.fullSizeContentView, .nonactivatingPanel],
+            contentRect: CGRect(x: 0, y: 0, width: 420, height: 60),
+            styleMask: [.nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.isOpaque = false
+        // Without .clear, AppKit fills the panel backing under the SwiftUI
+        // material → invisible (or grey) window.
+        panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: CommandLineView(state: appState))
+        let hosting = NSHostingView(rootView: CommandLineView(state: appState))
+        // Auto-resize the panel to whatever SwiftUI wants. Without this
+        // option the NSHostingView fills a fixed 60pt-tall panel and the
+        // wildmenu list is clipped off-screen.
+        hosting.sizingOptions = .preferredContentSize
+        panel.contentView = hosting
 
         // Bottom-left of the display under the cursor. visibleFrame already
         // excludes the menu bar + Dock.
         let x = currentScreen.visibleFrame.minX + 20
-        let y = currentScreen.visibleFrame.minY + 20
+        let y = currentScreen.visibleFrame.maxY + 20
         panel.setFrameOrigin(CGPoint(x: x, y: y))
 
         panel.orderFront(nil)
@@ -62,37 +70,50 @@ final class CommandLine {
     struct CommandLineView: View {
         @ObservedObject var state: NeoMouseState
 
-        // Project the .command associated-value String as a SwiftUI Binding
-        // so .searchable's two-way binding writes flow straight back into
-        // state.mode. Pattern-bound `let` can't be used with `$`; this is
-        // the canonical workaround for binding to an enum's payload.
-        private var commandText: Binding<String> {
-            Binding(
-                get: {
-                    if case .command(let s) = state.mode { return s }
-                    return ""
-                },
-                set: { state.mode = .command(command: $0) }
-            )
+        private var commandText: String {
+            if case .command(let s, _) = state.mode { return s }
+            return ""
         }
 
-        var filteredSuggestions: [String] {
-            let text = commandText.wrappedValue
-            if text.isEmpty { return state.commands }
-            return state.commands.filter { $0.localizedCaseInsensitiveContains(text) }
+        private var suggestionIndex: Int? {
+            if case .command(_, let idx) = state.mode { return idx }
+            return nil
+        }
+
+        private var filtered: [String] {
+            commandText.isEmpty
+                ? state.commands
+                : state.commands.filter { $0.localizedCaseInsensitiveContains(commandText) }
         }
 
         var body: some View {
-            NavigationStack {
-                GroupBox(label: Label("Command Line", systemImage: "building.columns")) {
-                    Text(commandText.wrappedValue)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    Text(":").foregroundColor(.secondary)
+                    Text(commandText).font(.system(.body, design: .monospaced))
+                    Spacer()
                 }
-                .searchable(text: commandText, prompt: "Type a command...") {
-                    ForEach(filteredSuggestions, id: \.self) { suggestion in
-                        Text(suggestion).searchCompletion(suggestion)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+
+                if !filtered.isEmpty {
+                    Divider()
+                    // nvim-style wildmenu: list always visible while typing,
+                    // Tab / Shift-Tab cycles the highlight (driven by
+                    // suggestionIndex on the .command mode payload).
+                    ForEach(Array(filtered.enumerated()), id: \.element) { idx, suggestion in
+                        Text(suggestion)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 3)
+                            .background(idx == suggestionIndex ? Color.accentColor.opacity(0.35) : .clear)
                     }
                 }
             }
+            .frame(minWidth: 400, alignment: .leading)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }

@@ -69,12 +69,14 @@ public struct Config: Decodable, Sendable {
         public let available: [Command]
         /// Single source of truth for the fallback list when settings.toml is
         /// missing or has no `[commands]` section. Update here; nowhere else.
-        public static let defaultAvailable: [Command] = [.numbers, .relativenumbers]
+        public static let defaultAvailable: [Command] = [.numbers, .relativenumbers, .help, .delmarks, .registers]
     }
 
     public enum Command: String, Decodable, Sendable {
         case numbers
         case relativenumbers
+        case registers
+        case help
         case delmarks
     }
 
