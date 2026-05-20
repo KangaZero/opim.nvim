@@ -34,10 +34,6 @@ final class GridOverlay {
         hide()
     }
 
-    func highlightCurrentGridDivision() {
-
-    }
-
     private func show() {
         guard let screen = (NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }),
             let appState,

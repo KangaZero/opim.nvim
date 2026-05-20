@@ -34,8 +34,6 @@ enum Mode {
     case disabled
     case normal(
         currentPendingOperation: NormalModePendingOperation,
-        //TODO change to below
-        // currentPendingOperation: NormalModePendingOperation,
     )
     case find(
         currentPendingOperation: String?,
@@ -43,7 +41,6 @@ enum Mode {
     )
     // case visualFind
     case command(
-        currentPendingOperation: String?,
-        commandOperationsExecuted: [String]?
+        command: String
     )
 }

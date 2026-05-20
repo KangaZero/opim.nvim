@@ -203,26 +203,51 @@ struct NeoMouse: App {
                       operationCount = \(operationCount)
                     """
                 )
-                //TODO take in account of other keyboard layouts
-                switch appState.mode {
-                case .disabled:
-                    switch event.characters {
-                    case "e":
-                        guard
-                            event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                                == .command
-                        else {
-                            return
-                        }
+                if event.characters == "e" && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+                {
+                    if case .disabled = appState.mode {
                         appState.mode = .normal(
                             currentPendingOperation: .none
                         )
                         ToastManager.shared.show(
                             "Neomouse Activated - Normal Mode")
                         return
-                    default:
+                    } else {
+                        if appState.isVisual {
+                            exitVisualMode(
+                                appState: appState,
+                                visualHighlightOverlay:
+                                    VisualHighlightOverlay.shared)
+                        }
+                        appState.mode = .disabled
+                        GridOverlay.shared.hideGrid()
+                        HelpDialog.shared.hide()
+                        CommandLine.shared.hide()
+                        ToastManager.shared.show("NeoMouse Deactivated")
                         return
                     }
+                }
+                //TODO take in account of other keyboard layouts
+                switch appState.mode {
+                case .disabled:
+                    return
+                // switch event.characters {
+                // case "e":
+                //     guard
+                //         event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                //             == .command
+                //     else {
+                //         return
+                //     }
+                //     appState.mode = .normal(
+                //         currentPendingOperation: .none
+                //     )
+                //     ToastManager.shared.show(
+                //         "Neomouse Activated - Normal Mode")
+                //     return
+                // default:
+                //     return
+                // }
                 case .normal(let currentPendingNormalOperation):
                     switch event.keyCode {
                     case charToKeyCodeMap["Esc"]:
@@ -238,6 +263,8 @@ struct NeoMouse: App {
                         appState.mode = .normal(
                             currentPendingOperation: .none
                         )
+                        HelpDialog.shared.hide()
+                        CommandLine.shared.hide()
                         appState.operationCountAsString = nil
                         return
                     default: break
@@ -409,27 +436,29 @@ struct NeoMouse: App {
                         return
                     }
                     switch event.characters {
-                    case "e":
-                        appState.operationCountAsString = nil
-                        guard
-                            event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                                == .command
-                        else {
-                            return appState.mode = .normal(
-                                currentPendingOperation: .none
-                            )
-                        }
-                        //TODO make this into a reusable fn disableNeoMouse
-                        if appState.isVisual {
-                            exitVisualMode(
-                                appState: appState,
-                                visualHighlightOverlay:
-                                    VisualHighlightOverlay.shared)
-                        }
-                        appState.mode = .disabled
-                        ToastManager.shared.show(
-                            "Neomouse Deactivated")
-                        return
+                    // case "e":
+                    //     appState.operationCountAsString = nil
+                    //     guard
+                    //         event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                    //             == .command
+                    //     else {
+                    //         return appState.mode = .normal(
+                    //             currentPendingOperation: .none
+                    //         )
+                    //     }
+                    //     //TODO make this into a reusable fn disableNeoMouse
+                    //     if appState.isVisual {
+                    //         exitVisualMode(
+                    //             appState: appState,
+                    //             visualHighlightOverlay:
+                    //                 VisualHighlightOverlay.shared)
+                    //     }
+                    //     appState.mode = .disabled
+                    //     HelpDialog.shared.hide()
+                    //     CommandLine.shared.hide()
+                    //     ToastManager.shared.show(
+                    //         "Neomouse Deactivated")
+                    //     return
                     //TODO: Add "$", "^ : where it will go to the most left/right of the current
                     //focused window", "g$" for most right, hjkl, counters,
                     case "f":
@@ -444,6 +473,8 @@ struct NeoMouse: App {
                             currentPendingOperation: nil,
                             findState: FindState()
                         )
+                        HelpDialog.shared.hide()
+                        CommandLine.shared.hide()
                         GridOverlay.shared.passAppState(state: appState)
                         GridOverlay.shared.showGrid()
                         ToastManager.shared.show(
@@ -517,6 +548,20 @@ struct NeoMouse: App {
                         }
                         HelpDialog.shared.toggle()
                         appState.mode = .normal(currentPendingOperation: .none)
+                        break
+
+                    case ":":
+                        guard event.charactersIgnoringModifiers == ":" else {
+                            debug(
+                                "Expected ':' for command line, got \(String(describing: event.charactersIgnoringModifiers))"
+                            )
+                            return appState.mode = .normal(
+                                currentPendingOperation: .none
+                            )
+                        }
+                        appState.mode = .command(command: "")
+                        CommandLine.shared.passAppState(state: appState)
+                        CommandLine.shared.toggle()
                         break
                     // INFO: No need to do modifierFlags checks for captizalized chars, as a
                     //modifierFlag will trigger the lowercase char equivalent
@@ -889,26 +934,64 @@ struct NeoMouse: App {
                                 currentScreenSize:
                                     currentScreenSize)
                         }
-                        if appState.isVisual {
-                            exitVisualMode(
-                                appState: appState,
-                                visualHighlightOverlay:
-                                    VisualHighlightOverlay.shared)
-                        }
-                        appState.mode = .disabled
-                        GridOverlay.shared.hideGrid()
-                        ToastManager.shared.show("NeoMouse Deactivated")
-                        return
+                    // if appState.isVisual {
+                    //     exitVisualMode(
+                    //         appState: appState,
+                    //         visualHighlightOverlay:
+                    //             VisualHighlightOverlay.shared)
+                    // }
+                    // appState.mode = .disabled
+                    // GridOverlay.shared.hideGrid()
+                    // HelpDialog.shared.hide()
+                    // CommandLine.shared.hide()
+                    // ToastManager.shared.show("NeoMouse Deactivated")
+                    // return
                     default:
                         NeoMouse.executeFindModeOperation(
                             event: event, appState: appState, currentScreenSize: currentScreenSize)
                         break
                     }
-                default:
-                    debug(
-                        "Should not happen: Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode)"
-                    )
-                    break
+                case .command(let currentCommand):
+                    // Esc → exit command mode back to normal.
+                    if event.keyCode == charToKeyCodeMap["Esc"], event.modifierFlags.rawValue == 256 {
+                        HelpDialog.shared.hide()
+                        CommandLine.shared.hide()
+                        appState.operationCountAsString = nil
+                        appState.mode = .normal(currentPendingOperation: .none)
+                        return
+                    }
+                    // Return / Enter → execute (TODO: dispatch command).
+                    if event.keyCode == charToKeyCodeMap["Return"]
+                        || event.keyCode == charToKeyCodeMap["Enter"]
+                    {
+                        debug("execute command: \(currentCommand)")
+                        CommandLine.shared.hide()
+                        appState.mode = .normal(currentPendingOperation: .none)
+                        return
+                    }
+                    // Backspace → drop last char.
+                    if event.keyCode == charToKeyCodeMap["Backspace"] {
+                        appState.mode = .command(command: String(currentCommand.dropLast()))
+                        return
+                    }
+                    // Plain key: append. Allow Shift for capitals, reject
+                    // Cmd / Ctrl / Opt chords (let those flow to the OS).
+                    guard let character = event.characters else { return }
+                    let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                    guard !mods.contains(.command),
+                        !mods.contains(.control),
+                        !mods.contains(.option)
+                    else { return }
+                    // IMPORTANT: write back to appState.mode so @Published fires
+                    // and the SwiftUI CommandLineView redraws. Mutating a local
+                    // `var currentCommand` only touches a snapshot.
+                    appState.mode = .command(command: currentCommand + character)
+                    return
+                // default:
+                //     debug(
+                //         "Should not happen: Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode)"
+                //     )
+                //     break
                 }
                 //INFO: after every non-integer keypress, excluding 0 which can be both a command and a count, we reset the operationCountAsString to nil to reset the count for the next operation
                 //Non-integer keypress generally needs to break at the end, while integer keypress will return early before reaching this point, so the operationCountAsString is only updated for integer keypress and reset for non-integer keypress
@@ -1035,7 +1118,6 @@ struct NeoMouse: App {
             // findState.pendingGridDivisionIndex =
             // gridDivisionCharactersIndex
             GridOverlay.shared.passAppState(state: appState)
-            GridOverlay.shared.highlightCurrentGridDivision()
             // Second keypress
         } else {
             guard
