@@ -97,15 +97,15 @@ struct MotionTargetsTests {
     func lineCountFirstLine() {
         // (1080-10)/50 * 1 = 21.4
         let p = MotionTarget.toLineCount(
-            localX: 0, screenHeight: 1080, gridInset: 10, linesOnScreen: 50, count: 1)
+            localX: 0, screenHeight: 1080, gridInset: 10, rowsOnScreen: 50, count: 1)
         #expect(abs(p.y - 21.4) < 0.0001)
     }
 
-    @Test("Ng at count=linesOnScreen lands near the bottom (off-by-inset)")
+    @Test("Ng at count=rowsOnScreen lands near the bottom (off-by-inset)")
     func lineCountLastLine() {
         // (1080-10)/50 * 50 = 1070 == bottom (screenHeight - inset)
         let p = MotionTarget.toLineCount(
-            localX: 0, screenHeight: 1080, gridInset: 10, linesOnScreen: 50, count: 50)
+            localX: 0, screenHeight: 1080, gridInset: 10, rowsOnScreen: 50, count: 50)
         #expect(p.y == 1070)
         // matches MotionTarget.bottom for this case:
         let b = MotionTarget.bottom(localX: 0, screenHeight: 1080, gridInset: 10)
@@ -115,16 +115,16 @@ struct MotionTargetsTests {
     @Test("Ng scales linearly with count")
     func lineCountLinear() {
         let p5 = MotionTarget.toLineCount(
-            localX: 0, screenHeight: 1080, gridInset: 10, linesOnScreen: 50, count: 5)
+            localX: 0, screenHeight: 1080, gridInset: 10, rowsOnScreen: 50, count: 5)
         let p10 = MotionTarget.toLineCount(
-            localX: 0, screenHeight: 1080, gridInset: 10, linesOnScreen: 50, count: 10)
+            localX: 0, screenHeight: 1080, gridInset: 10, rowsOnScreen: 50, count: 10)
         #expect(abs(p10.y - 2 * p5.y) < 0.0001)
     }
 
     @Test("Ng preserves localX")
     func lineCountPreservesX() {
         let p = MotionTarget.toLineCount(
-            localX: 999, screenHeight: 1080, gridInset: 10, linesOnScreen: 50, count: 7)
+            localX: 999, screenHeight: 1080, gridInset: 10, rowsOnScreen: 50, count: 7)
         #expect(p.x == 999)
     }
 }

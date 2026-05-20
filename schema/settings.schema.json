@@ -71,29 +71,26 @@
       "description": "Cursor motion behavior in normal mode.",
       "additionalProperties": false,
       "required": [
-        "lines_on_screen",
-        "range_x",
-        "range_y",
+        "rows_on_screen",
+        "columns_on_screen",
         "is_clamp_cursor_to_current_screen"
       ],
       "properties": {
-        "lines_on_screen": {
-          "type": "integer",
-          "exclusiveMinimum": 0, // greater than 0
-          "default": 50,
-          "description": "Applies to per display. Vertical resolution used by `gg`/`G`/count-prefixed motions."
+        "rows_on_screen": {
+          "oneOf": [
+            { "type": "integer", "exclusiveMinimum": 0 },
+            { "type": "string", "enum": ["automatic"] }
+          ],
+          "default": "automatic",
+          "description": "Vertical grid resolution. Integer cell count, or 'automatic' to derive from screen height (~20pt per cell). Step size for j/k = usable height / rows."
         },
-        "range_x": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "default": 20,
-          "description": "Pixels moved per `h`/`l` step."
-        },
-        "range_y": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "default": 20,
-          "description": "Pixels moved per `j`/`k` step."
+        "columns_on_screen": {
+          "oneOf": [
+            { "type": "integer", "exclusiveMinimum": 0 },
+            { "type": "string", "enum": ["automatic"] }
+          ],
+          "default": "automatic",
+          "description": "Horizontal grid resolution. Integer cell count, or 'automatic' to square cells against the resolved row height. Step size for h/l = usable width / columns."
         },
         "is_clamp_cursor_to_current_screen": {
           "type": "boolean",

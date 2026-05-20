@@ -33,10 +33,12 @@ class NeoMouseState: ObservableObject {
     let innerGridDivisions: Int
     let findModeGridDivisionCharacters: [String]
     let findModeInnerGridDivisionCharacters: [String]
-    let linesOnScreen: Int
+    /// Either explicit or `.automatic` → derive at use time. Resolve via
+    /// `resolvedGrid(usable:)`, never read directly. Auto rows fall back to
+    /// a 20pt baseline cell height; auto cols then square the cells.
+    let rowsOnScreen: Config.AutoInt
+    let columnsOnScreen: Config.AutoInt
     let minimumHighlightWidth: Int
-    let rangeX: CGFloat
-    let rangeY: CGFloat
 
     // Gesture related settings
     let zoomStepValue: Double
@@ -64,11 +66,11 @@ class NeoMouseState: ObservableObject {
             (config?.grid.findModeInnerCharacters ?? Config.Grid.defaultFindModeInnerCharacters).map {
                 String($0)
             }
-        self.linesOnScreen = config?.motion.linesOnScreen ?? Config.Motion.defaultLinesOnScreen
+        self.rowsOnScreen = config?.motion.rowsOnScreen ?? Config.Motion.defaultRowsOnScreen
+        self.columnsOnScreen =
+            config?.motion.columnsOnScreen ?? Config.Motion.defaultColumnsOnScreen
         self.minimumHighlightWidth =
             config?.visual.minimumHighlightWidth ?? Config.Visual.defaultMinimumHighlightWidth
-        self.rangeX = config?.motion.rangeX ?? Config.Motion.defaultRangeX
-        self.rangeY = config?.motion.rangeY ?? Config.Motion.defaultRangeY
         self.zoomStepValue = config?.gesture.zoomStepValue ?? Config.Gesture.defaultZoomStepValue
         self.incrementsPerGesture =
             config?.gesture.incrementsPerGesture ?? Config.Gesture.defaultIncrementsPerGesture
@@ -97,6 +99,45 @@ class NeoMouseState: ObservableObject {
                 return .menu
             }
         }()
+    }
+
+    /// Baseline cell size in points used when both axes are `.automatic`
+    /// (or when rows auto + we need a starting cell height to square cols
+    /// against). 20pt matches the old fixed `range_x`/`range_y` defaults
+    /// — same "feel" as pre-refactor for users on the auto path.
+    static let autoBaselineCellSize: CGFloat = 20
+
+    /// Resolve `(rowsOnScreen, columnsOnScreen)` into concrete counts for
+    /// a given usable rect. Rules:
+    ///   - Rows `.explicit(n)` → n.
+    ///   - Rows `.automatic`   → usable.height / 20pt (floored).
+    ///   - Cols `.explicit(n)` → n.
+    ///   - Cols `.automatic`   → usable.width / (resolved row height) →
+    ///                           keeps cells square.
+    func resolvedGrid(usable: CGRect) -> (rows: Int, cols: Int) {
+        let baseline = NeoMouseState.autoBaselineCellSize
+
+        let rows: Int = {
+            switch rowsOnScreen {
+            case .explicit(let n): return max(1, n)
+            case .automatic:
+                guard baseline > 0 else { return 1 }
+                return max(1, Int((usable.height / baseline).rounded(.down)))
+            }
+        }()
+
+        let cols: Int = {
+            switch columnsOnScreen {
+            case .explicit(let n): return max(1, n)
+            case .automatic:
+                // Square cells: col width = current row height.
+                let rowHeight = usable.height / CGFloat(rows)
+                guard rowHeight > 0 else { return 1 }
+                return max(1, Int((usable.width / rowHeight).rounded(.down)))
+            }
+        }()
+
+        return (rows, cols)
     }
 }
 
@@ -518,9 +559,22 @@ struct NeoMouse: App {
                                 currentPendingOperation: .none
                             )
                         }
+                        // Step = one cell of the rows×cols grid laid over
+                        // the inset-adjusted screen. Same formula as
+                        // NumbersOverlay → cursor lands exactly on cell
+                        // boundaries every `j`/`k`/`h`/`l` press.
+                        let _hjklUsable = CGRect(
+                            x: appState.gridInset,
+                            y: appState.gridInset,
+                            width: max(0, currentScreenSize.width - 2 * appState.gridInset),
+                            height: max(0, currentScreenSize.height - 2 * appState.gridInset)
+                        )
+                        let _hjklGrid = appState.resolvedGrid(usable: _hjklUsable)
+                        let _hjklStepX = _hjklUsable.width / CGFloat(_hjklGrid.cols)
+                        let _hjklStepY = _hjklUsable.height / CGFloat(_hjklGrid.rows)
                         let delta = direction.delta(
-                            stepX: appState.rangeX,
-                            stepY: appState.rangeY,
+                            stepX: _hjklStepX,
+                            stepY: _hjklStepY,
                             count: operationCount)
                         Mouse.moveRelative(
                             x: delta.dx, y: delta.dy,
@@ -622,11 +676,17 @@ struct NeoMouse: App {
                         }
                         // "g" instead of "gg" as the following "g" is only appended/updated onto appState after current MainActor event
                         if operationCount > 0 && currentPendingNormalOperation == .g {
+                            let _ggUsable = CGRect(
+                                x: appState.gridInset,
+                                y: appState.gridInset,
+                                width: max(0, currentScreenSize.width - 2 * appState.gridInset),
+                                height: max(0, currentScreenSize.height - 2 * appState.gridInset)
+                            )
                             let target = MotionTarget.toLineCount(
                                 localX: localCGPoint.x,
                                 screenHeight: currentScreenSize.height,
                                 gridInset: appState.gridInset,
-                                linesOnScreen: appState.linesOnScreen,
+                                rowsOnScreen: appState.resolvedGrid(usable: _ggUsable).rows,
                                 count: operationCount)
                             Mouse.moveToScreenLocal(x: target.x, y: target.y)
                             appState.mode = .normal(
@@ -679,7 +739,17 @@ struct NeoMouse: App {
                                     VisualHighlightOverlay.shared)
                             return
                         }
-                        let lineHeight = currentScreenSize.height / CGFloat(appState.linesOnScreen)
+                        // Line height = one row of the inset-adjusted grid,
+                        // same as hjkl + NumbersOverlay.
+                        let _vUsable = CGRect(
+                            x: appState.gridInset,
+                            y: appState.gridInset,
+                            width: max(0, currentScreenSize.width - 2 * appState.gridInset),
+                            height: max(0, currentScreenSize.height - 2 * appState.gridInset)
+                        )
+                        let lineHeight =
+                            _vUsable.height
+                            / CGFloat(appState.resolvedGrid(usable: _vUsable).rows)
                         let startCGPoint = CGPoint(
                             x: currentDisplayBounds.origin.x + appState.gridInset,
                             y: currentCGPoint.y)

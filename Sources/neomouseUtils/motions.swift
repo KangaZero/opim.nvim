@@ -45,18 +45,18 @@ public enum MotionTarget {
         CGPoint(x: screenWidth / 2, y: localY)
     }
 
-    /// `Ng` — jump to "line N" of `linesOnScreen` evenly-divided rows.
-    /// Y = (screenHeight - gridInset) / linesOnScreen * count.
+    /// `Ng` — jump to "row N" of `rowsOnScreen` evenly-divided rows.
+    /// Y = (screenHeight - gridInset) / rowsOnScreen * count.
     public static func toLineCount(
         localX: CGFloat,
         screenHeight: CGFloat,
         gridInset: CGFloat,
-        linesOnScreen: Int,
+        rowsOnScreen: Int,
         count: CGFloat
     ) -> CGPoint {
         CGPoint(
             x: localX,
-            y: (screenHeight - gridInset) / CGFloat(linesOnScreen) * count
+            y: (screenHeight - gridInset) / CGFloat(rowsOnScreen) * count
         )
     }
 }

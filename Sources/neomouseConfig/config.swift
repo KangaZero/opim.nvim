@@ -40,15 +40,39 @@ public struct Config: Decodable, Sendable {
     }
 
     public struct Motion: Decodable, Sendable {
-        public let linesOnScreen: Int
-        public let rangeX: CGFloat
-        public let rangeY: CGFloat
+        public let rowsOnScreen: AutoInt
+        public let columnsOnScreen: AutoInt
         public let isClampCursorToCurrentScreen: Bool
 
-        public static let defaultLinesOnScreen: Int = 50
-        public static let defaultRangeX: CGFloat = 20
-        public static let defaultRangeY: CGFloat = 20
+        public static let defaultRowsOnScreen: AutoInt = .automatic
+        public static let defaultColumnsOnScreen: AutoInt = .automatic
         public static let defaultIsClampCursorToCurrentScreen = false
+    }
+
+    /// Decodes either the literal string `"automatic"` or an integer. Used
+    /// for config knobs where the user can opt out of specifying a value
+    /// and let the app derive one — e.g. `columns_on_screen` deriving a
+    /// square-cell count from screen aspect.
+    public enum AutoInt: Decodable, Sendable, Equatable {
+        case automatic
+        case explicit(Int)
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if let i = try? c.decode(Int.self) {
+                self = .explicit(i)
+                return
+            }
+            let s = try c.decode(String.self)
+            guard s.lowercased() == "automatic" else {
+                throw DecodingError.dataCorruptedError(
+                    in: c,
+                    debugDescription:
+                        "expected integer or string \"automatic\", got \"\(s)\""
+                )
+            }
+            self = .automatic
+        }
     }
 
     public struct Visual: Decodable, Sendable {

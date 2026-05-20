@@ -8,7 +8,7 @@ import neomouseUtils
 /// show-time; in relative mode it follows the cursor across displays. Two
 /// modes:
 ///
-/// * `.absolute` — left gutter shows row numbers `1..linesOnScreen`, top
+/// * `.absolute` — left gutter shows row numbers `1..rowsOnScreen`, top
 ///   strip shows column numbers `1..columnsOnScreen` (`:numbers`/`:nu`).
 /// * `.relative` — cursor row + column show their absolute numbers; every
 ///   other row/column shows the distance from the cursor
@@ -21,9 +21,10 @@ import neomouseUtils
 /// borderless, click-through, screen-saver level — it sits on top of
 /// everything without stealing input.
 ///
-/// Column count is derived from `linesOnScreen × aspect ratio` so cells stay
-/// roughly square on any display. Computed at anchor-time and re-derived on
-/// every re-anchor (different screen → different aspect → different count).
+/// Row + column counts come from `appState.resolvedGrid(usable:)` — see
+/// `NeoMouseState`. Auto rows = screen height / 20pt baseline; auto cols
+/// square the cells against the resolved row height. Anchor recomputes
+/// both when the cursor moves to a different display.
 @MainActor
 final class NumbersOverlay {
     static let shared = NumbersOverlay()
@@ -36,16 +37,23 @@ final class NumbersOverlay {
     /// the view.
     final class Model: ObservableObject {
         @Published var mode: Mode = .absolute
-        @Published var linesOnScreen: Int = 1
+        @Published var rowsOnScreen: Int = 1
         @Published var columnsOnScreen: Int = 1
+        /// Cell size in points. Derived from `usable / count` here — counts
+        /// are the user-facing config, step is the implementation detail.
+        /// Same formula `hjkl` uses to compute its step → cells align 1:1.
+        @Published var stepX: CGFloat = 1
+        @Published var stepY: CGFloat = 1
         @Published var currentLineIndex: Int = 0  // 0-based row under cursor
         @Published var currentColumnIndex: Int = 0  // 0-based col under cursor
-        /// Captured at show-time + each re-anchor so the mouse-move handler
-        /// can recompute indices without re-querying NSScreen, and so the
-        /// view can size itself directly from the model. Must be @Published
-        /// — the view reads `.size` from this when laying out, so a screen
-        /// change has to trigger a re-render.
-        @Published var screenVisibleFrame: CGRect = .zero
+        /// Full screen frame (not visibleFrame) — matches GridOverlay, which
+        /// also draws over menu bar / Dock since the window sits at
+        /// `screenSaver` level. Captured at show + each re-anchor.
+        @Published var screenFrame: CGRect = .zero
+        /// Padding from each edge of `screenFrame`, mirrors GridOverlay's
+        /// `state.gridInset`. Keeps the ruler from butting up against the
+        /// physical bezel / notch / corners.
+        @Published var inset: CGFloat = 0
     }
 
     let model = Model()
@@ -81,7 +89,7 @@ final class NumbersOverlay {
     }
 
     func show(mode: Mode) {
-        guard let appState else {
+        guard appState !== nil else {
             debug("NumbersOverlay.show: no appState")
             return
         }
@@ -95,14 +103,13 @@ final class NumbersOverlay {
         }
 
         model.mode = mode
-        model.linesOnScreen = max(1, appState.linesOnScreen)
         anchorWindow(to: currentScreen)
         recomputeIndices(mouseLocation: NSEvent.mouseLocation)
         reanchorIfNeeded(mouseLocation: NSEvent.mouseLocation)
 
         if window == nil {
             let win = NSWindow(
-                contentRect: rectForScreen(currentScreen),
+                contentRect: Self.rectForScreen(currentScreen),
                 styleMask: [.borderless],
                 backing: .buffered,
                 defer: false
@@ -117,7 +124,7 @@ final class NumbersOverlay {
             win.contentView = NSHostingView(rootView: NumbersOverlayView(model: model))
             window = win
         }
-        window?.setFrame(rectForScreen(currentScreen), display: true)
+        window?.setFrame(Self.rectForScreen(currentScreen), display: true)
         window?.orderFrontRegardless()
 
         installMouseMonitorIfNeeded()
@@ -150,18 +157,19 @@ final class NumbersOverlay {
         // opened the ruler instead of where it is now.
         recomputeIndices(mouseLocation: NSEvent.mouseLocation)
 
-        let lineCount = max(1, model.linesOnScreen)
-        let colCount = max(1, model.columnsOnScreen)
-        let visible = screen.visibleFrame  // AppKit coords
-        let rowHeight = visible.height / CGFloat(lineCount)
-        let colWidth = visible.width / CGFloat(colCount)
+        // Same usable rect + step values used by recomputeIndices + the
+        // view's layout, so snap lands exactly where the highlight is and
+        // exactly one hjkl step away from each neighbour.
+        let usable = Self.usableRect(screen.frame, inset: model.inset)
+        let stepX = model.stepX
+        let stepY = model.stepY
 
         // Cell centre in AppKit coords. Row index counts down from the top
-        // of the visible frame (i.e. starts at visible.maxY).
+        // of the usable rect (i.e. starts at usable.maxY).
         let row = CGFloat(model.currentLineIndex)
         let col = CGFloat(model.currentColumnIndex)
-        let appKitX = visible.minX + (col + 0.5) * colWidth
-        let appKitY = visible.maxY - (row + 0.5) * rowHeight
+        let appKitX = usable.minX + (col + 0.5) * stepX
+        let appKitY = usable.maxY - (row + 0.5) * stepY
 
         // AppKit → CG conversion uses the primary screen's height. AppKit's
         // global origin is the bottom-left of the screen whose `frame.origin`
@@ -177,36 +185,42 @@ final class NumbersOverlay {
 
     // MARK: - Internals
 
-    /// Window now spans the full `visibleFrame` of the anchored display so
-    /// it can host both the left row gutter and the top column strip in one
-    /// SwiftUI tree. The window itself is `ignoresMouseEvents = true`, so
-    /// the L-shaped non-transparent area + transparent middle still passes
-    /// every click through to whatever app is underneath.
-    private func rectForScreen(_ screen: NSScreen) -> CGRect {
-        screen.visibleFrame
+    /// Full screen rect (incl. menu bar / Dock area). Window at
+    /// `screenSaver` level draws over them anyway; matches GridOverlay so
+    /// inset math is consistent across overlays.
+    private static func rectForScreen(_ screen: NSScreen) -> CGRect {
+        screen.frame
+    }
+
+    /// Usable drawing area = screen frame inset by `inset` on every side.
+    /// All row/col cell math runs against this rect, not the full frame.
+    private static func usableRect(_ frame: CGRect, inset: CGFloat) -> CGRect {
+        CGRect(
+            x: frame.minX + inset,
+            y: frame.minY + inset,
+            width: max(0, frame.width - 2 * inset),
+            height: max(0, frame.height - 2 * inset)
+        )
     }
 
     /// Pin the window + cached frame to a specific screen. Used both at
     /// show-time and whenever the cursor crosses onto a different display.
-    /// Column count is re-derived here because aspect ratio is per-display.
+    /// Counts come from the `.automatic`-aware `resolvedGrid(usable:)` so
+    /// behavior is identical to `hjkl` / `gg` / `V` step computation →
+    /// motion ↔ overlay align 1:1.
     private func anchorWindow(to screen: NSScreen) {
         anchoredScreen = screen
-        let frame = screen.visibleFrame
-        model.screenVisibleFrame = frame
-        model.columnsOnScreen = Self.deriveColumnCount(
-            lines: model.linesOnScreen,
-            frame: frame
-        )
-        window?.setFrame(rectForScreen(screen), display: true)
-    }
-
-    /// Pick a column count that makes cells roughly square at the chosen
-    /// row count. Floor of `lines × aspect` so we don't push beyond what
-    /// fits — and a hard floor of 1 so divide-by-zero is impossible.
-    private static func deriveColumnCount(lines: Int, frame: CGRect) -> Int {
-        guard frame.height > 0 else { return 1 }
-        let aspect = frame.width / frame.height
-        return max(1, Int((Double(lines) * aspect).rounded()))
+        let frame = screen.frame
+        let inset = appState?.gridInset ?? 0
+        let usable = Self.usableRect(frame, inset: inset)
+        let grid = appState?.resolvedGrid(usable: usable) ?? (rows: 1, cols: 1)
+        model.screenFrame = frame
+        model.inset = inset
+        model.rowsOnScreen = grid.rows
+        model.columnsOnScreen = grid.cols
+        model.stepX = usable.width / CGFloat(grid.cols)
+        model.stepY = usable.height / CGFloat(grid.rows)
+        window?.setFrame(Self.rectForScreen(screen), display: true)
     }
 
     private func switchMode(to mode: Mode) {
@@ -268,19 +282,21 @@ final class NumbersOverlay {
     /// visible frame" before dividing by row height. X is straightforward
     /// (left → right).
     private func recomputeIndices(mouseLocation: CGPoint) {
-        let frame = model.screenVisibleFrame
-        guard frame.height > 0, frame.width > 0 else { return }
-        let lineCount = max(1, model.linesOnScreen)
+        let usable = Self.usableRect(model.screenFrame, inset: model.inset)
+        guard usable.height > 0, usable.width > 0 else { return }
+        let lineCount = max(1, model.rowsOnScreen)
         let colCount = max(1, model.columnsOnScreen)
-        let rowHeight = frame.height / CGFloat(lineCount)
-        let colWidth = frame.width / CGFloat(colCount)
+        // Use step (= rangeY / rangeX) directly, not usable/count. Keeps
+        // cell index exactly aligned with how hjkl moves the cursor.
+        let stepX = model.stepX
+        let stepY = model.stepY
 
-        let topDown = frame.maxY - mouseLocation.y
-        let rawRow = Int((topDown / rowHeight).rounded(.down))
+        let topDown = usable.maxY - mouseLocation.y
+        let rawRow = Int((topDown / stepY).rounded(.down))
         let clampedRow = min(max(rawRow, 0), lineCount - 1)
 
-        let leftRight = mouseLocation.x - frame.minX
-        let rawCol = Int((leftRight / colWidth).rounded(.down))
+        let leftRight = mouseLocation.x - usable.minX
+        let rawCol = Int((leftRight / stepX).rounded(.down))
         let clampedCol = min(max(rawCol, 0), colCount - 1)
 
         // Guard against redundant @Published fires — SwiftUI re-renders
@@ -298,7 +314,7 @@ struct NumbersOverlayView: View {
     @ObservedObject var model: NumbersOverlay.Model
 
     var body: some View {
-        // Drive layout from `screenVisibleFrame` directly instead of a
+        // Drive layout from `screenFrame` directly instead of a
         // GeometryReader. GeometryReader has no preferred size, so when this
         // view is hosted in a borderless / transparent / screen-saver-level
         // NSHostingView, the very first render can collapse to zero size and
@@ -307,18 +323,34 @@ struct NumbersOverlayView: View {
         // mutations) appeared to work while `.absolute` (no mutations after
         // show) did not. Explicit width/height fixes both modes on the
         // initial render.
-        let size = model.screenVisibleFrame.size
+        //
+        // `.ignoresSafeArea(.all)` is mandatory: without it NSHostingView
+        // applies menu-bar / notch insets to the SwiftUI tree, so the ruler
+        // renders shifted down from the window's actual frame. Matches
+        // GridOverlay, which has the same issue + the same fix.
+        let outer = model.screenFrame.size
+        let inset = model.inset
+        let inner = CGSize(
+            width: max(0, outer.width - 2 * inset),
+            height: max(0, outer.height - 2 * inset)
+        )
         ZStack(alignment: .topLeading) {
-            rowGutter(totalHeight: size.height)
-            columnStrip(totalWidth: size.width)
+            rowGutter(totalHeight: inner.height)
+                .offset(x: inset, y: inset)
+            columnStrip(totalWidth: inner.width)
+                .offset(x: inset, y: inset)
         }
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .frame(width: outer.width, height: outer.height, alignment: .topLeading)
+        .ignoresSafeArea(.all)
     }
 
     @ViewBuilder
     private func rowGutter(totalHeight: CGFloat) -> some View {
-        let count = max(1, model.linesOnScreen)
-        let rowHeight = totalHeight / CGFloat(count)
+        let count = max(1, model.rowsOnScreen)
+        // Cell height = exact hjkl step (model.stepY = rangeY), not
+        // totalHeight/count — divides drift when usable height isn't an
+        // exact multiple of the step.
+        let rowHeight = model.stepY
         let fontSize = max(9, min(14, rowHeight * 0.6))
         VStack(spacing: 0) {
             ForEach(0..<count, id: \.self) { i in
@@ -340,7 +372,8 @@ struct NumbersOverlayView: View {
     @ViewBuilder
     private func columnStrip(totalWidth: CGFloat) -> some View {
         let count = max(1, model.columnsOnScreen)
-        let colWidth = totalWidth / CGFloat(count)
+        // Cell width = exact hjkl step (model.stepX = rangeX).
+        let colWidth = model.stepX
         // Tighter font bound for the column strip — many narrow cells means
         // labels need to fit in <colWidth, with minimumScaleFactor taking
         // over when even the floor is too big.
