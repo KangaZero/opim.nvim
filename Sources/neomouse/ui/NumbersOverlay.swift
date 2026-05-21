@@ -236,9 +236,6 @@ final class NumbersOverlay {
     }
 
     private func installMouseMonitorIfNeeded() {
-        guard model.mode == .relative, mouseMonitor == nil else { return }
-        // `.mouseMoved` only fires while no button is pressed; add the drag
-        // masks too so the highlight still tracks during click-and-drag.
         let mask: NSEvent.EventTypeMask = [
             .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
         ]
@@ -249,7 +246,9 @@ final class NumbersOverlay {
             Task { @MainActor in
                 let location = NSEvent.mouseLocation
                 self.reanchorIfNeeded(mouseLocation: location)
-                self.recomputeIndices(mouseLocation: location)
+                if model.mode == .relative {
+                    self.recomputeIndices(mouseLocation: location)
+                }
             }
         }
     }
@@ -273,6 +272,11 @@ final class NumbersOverlay {
         else { return }
         if screen !== anchoredScreen {
             anchorWindow(to: screen)
+            //NOTE: this is still needed after re-anchoring because the mouse monitor delivers
+            //so recomputeIndices is still needed even for absolute mode, but only called on screen change
+            if model.mode == .absolute {
+                recomputeIndices(mouseLocation: mouseLocation)
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import neomouseUtils
 
 @MainActor
 final class CommandLine {
+
     static let shared = CommandLine()
     private var window: NSWindow?
     private weak var appState: NeoMouseState?
@@ -24,12 +25,81 @@ final class CommandLine {
         return idx
     }
 
+    // var filtered: [Config.Command] {
+    //     guard let appState else {
+    //         debug("filtered computed property accessed but appState is nil")
+    //         return []
+    //     }
+    //     let text = commandText
+    //     //NOTE: This is to not show shorthand commands (like `:h` for `:help`)
+    //     let filteredOutShorthandCommands = appState.commands.filter { $0.rawValue.count >= 4 }
+    //     return text.isEmpty
+    //         ? filteredOutShorthandCommands
+    //     //IMPORTANT: case insensitive match just like vim
+    //         : filteredOutShorthandCommands.filter { $0.rawValue.localizedCaseInsensitiveContains(text) }
+    // }
     var filtered: [Config.Command] {
-        guard let appState else { return [] }
+        guard let appState else {
+            debug("filtered computed property accessed but appState is nil")
+            return []
+        }
         let text = commandText
-        return text.isEmpty
-            ? appState.commands
-            : appState.commands.filter { $0.rawValue.localizedCaseInsensitiveContains(text) }
+        let filteredOutShorthandCommands = appState.commands.filter { $0.rawValue.count >= 4 }
+        guard !text.isEmpty else { return filteredOutShorthandCommands }
+
+        return
+            filteredOutShorthandCommands
+            .compactMap { cmd -> (cmd: Config.Command, score: Int)? in
+                guard let score = fuzzyScore(query: text, candidate: cmd.rawValue) else { return nil }
+                return (cmd, score)
+            }
+            .sorted { $0.score > $1.score }
+            .map(\.cmd)
+    }
+
+    /// Returns a score if `query` is a subsequence of `candidate`, nil otherwise.
+    /// Higher score = better match. Rewards:
+    ///   - Consecutive character runs
+    ///   - Matches at word boundaries (after `-`, `_`, ` `)
+    ///   - Match starting at index 0
+    private func fuzzyScore(query: String, candidate: String) -> Int? {
+        let query = query.lowercased()
+        let candidate = candidate.lowercased()
+
+        var score = 0
+        var consecutiveBonus = 0
+        var prevMatchIdx: String.Index? = nil
+        var searchFrom = candidate.startIndex
+
+        for qChar in query {
+            guard let matchIdx = candidate[searchFrom...].firstIndex(of: qChar) else {
+                return nil  // query char not found — not a subsequence
+            }
+
+            // Consecutive run bonus (grows the longer the run)
+            if let prev = prevMatchIdx, candidate.index(after: prev) == matchIdx {
+                consecutiveBonus += 5
+                score += consecutiveBonus
+            } else {
+                consecutiveBonus = 0
+            }
+
+            // Word boundary bonus
+            if matchIdx == candidate.startIndex {
+                score += 10
+            } else {
+                //TODO Not sure if this is even needed as no commands current have separators, but keeping for now just incase
+                let charBefore = candidate[candidate.index(before: matchIdx)]
+                if charBefore == "-" || charBefore == "_" || charBefore == " " {
+                    score += 8
+                }
+            }
+
+            prevMatchIdx = matchIdx
+            searchFrom = candidate.index(after: matchIdx)
+        }
+
+        return score
     }
 
     func toggle() {
@@ -48,21 +118,15 @@ final class CommandLine {
         window?.orderOut(nil)
     }
 
-    func executeSuggestionCommand(at suggestionIndex: Int) {
-        guard let appState, case .command = appState.mode else {
-            return debug("executeSuggestionCommand called but appState.mode is not .command")
+    func commandExecutionHandler(command: Config.Command) {
+        guard let appState else {
+            return debug("commandExecutionHandler called but appState is nil")
         }
-        guard suggestionIndex >= 0 && suggestionIndex < filtered.count else {
-            return debug(
-                "executeSuggestionCommand called with out-of-bounds suggestionIndex \(suggestionIndex) for filtered commands count \(filtered.count)"
-            )
-        }
-        let commandToExecute: Config.Command = filtered[suggestionIndex]
-        debug("executeSuggestionCommand: \(commandToExecute)")
-        switch commandToExecute {
+        switch command {
         case .help, .h:
-            HelpDialog.shared.toggle()
+            //NOTE: Order is important here: the help dialog is only available in normal mode
             appState.mode = .normal(currentPendingOperation: .none)
+            HelpDialog.shared.toggle()
             return
         case .numbers, .nu:
             NumbersOverlay.shared.passAppState(state: appState)
@@ -78,6 +142,32 @@ final class CommandLine {
             NSApp.terminate(nil)
         default: return
         }
+    }
+
+    func executeCommand(at command: String) {
+        guard let appState, case .command = appState.mode else {
+            return debug("executeSuggestionCommand called but appState.mode is not .command")
+        }
+        //IMPORTANT: case insensitive just like vim
+        guard let commandToExecute = Config.Command(rawValue: command.localizedLowercase) else {
+            ToastManager.shared.show("not a valid command: \(command)")
+            return debug("executeCommand called with invalid command string: \(command)")
+        }
+        commandExecutionHandler(command: commandToExecute)
+    }
+
+    func executeSuggestionCommand(at suggestionIndex: Int) {
+        guard let appState, case .command = appState.mode else {
+            return debug("executeSuggestionCommand called but appState.mode is not .command")
+        }
+        guard suggestionIndex >= 0 && suggestionIndex < filtered.count else {
+            return debug(
+                "executeSuggestionCommand called with out-of-bounds suggestionIndex \(suggestionIndex) for filtered commands count \(filtered.count)"
+            )
+        }
+        let commandToExecute: Config.Command = filtered[suggestionIndex]
+        debug("executeSuggestionCommand: \(commandToExecute)")
+        commandExecutionHandler(command: commandToExecute)
     }
 
     private func show() {

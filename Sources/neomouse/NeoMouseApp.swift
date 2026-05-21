@@ -121,6 +121,7 @@ class NeoMouseState: ObservableObject {
             switch rowsOnScreen {
             case .explicit(let n): return max(1, n)
             case .automatic:
+                //NOTE: baseline should never be 0, maybe set a mininum number of rows, like 10?
                 guard baseline > 0 else { return 1 }
                 return max(1, Int((usable.height / baseline).rounded(.down)))
             }
@@ -650,7 +651,6 @@ struct NeoMouse: App {
                                 currentPendingOperation: .none
                             )
                         }
-                        //TODO check if numbers or relativenumbers is enabled
                         NumbersOverlay.shared.snapCursor()
                         break
                     // INFO: No need to do modifierFlags checks for captizalized chars, as a
@@ -1040,18 +1040,7 @@ struct NeoMouse: App {
                                 currentScreenSize:
                                     currentScreenSize)
                         }
-                    // if appState.isVisual {
-                    //     exitVisualMode(
-                    //         appState: appState,
-                    //         visualHighlightOverlay:
-                    //             VisualHighlightOverlay.shared)
-                    // }
-                    // appState.mode = .disabled
-                    // GridOverlay.shared.hideGrid()
-                    // HelpDialog.shared.hide()
-                    // CommandLine.shared.hide()
-                    // ToastManager.shared.show("NeoMouse Deactivated")
-                    // return
+                        break
                     default:
                         NeoMouse.executeFindModeOperation(
                             event: event, appState: appState, currentScreenSize: currentScreenSize)
@@ -1070,11 +1059,12 @@ struct NeoMouse: App {
                         return
                     case charToKeyCodeMap["Return"], charToKeyCodeMap["Enter"]:
                         if let suggestionIndex {
-                            CommandLine.shared.hide()
                             CommandLine.shared.executeSuggestionCommand(at: suggestionIndex)
-                        } else {
                             CommandLine.shared.hide()
+                        } else {
                             debug("execute command: \(currentCommand)")
+                            CommandLine.shared.executeCommand(at: currentCommand)
+                            CommandLine.shared.hide()
                             appState.mode = .normal(currentPendingOperation: .none)
                         }
                         return
@@ -1084,14 +1074,7 @@ struct NeoMouse: App {
                             suggestionIndex: nil
                         )
                         return
-                    default:
-                        break
-                    }
-                    // Tab / Shift-Tab → round-robin cycle through filtered hits.
-                    // Mirrors nvim wildmenu: list always visible, Tab moves
-                    // the highlight; the command text itself doesn't change
-                    // until the user accepts via Enter.
-                    if event.keyCode == charToKeyCodeMap["Tab"] {
+                    case charToKeyCodeMap["Tab"]:
                         // Single source of truth: ask CommandLine for the
                         // current filtered list (same code path the view +
                         // executor use).
@@ -1109,29 +1092,69 @@ struct NeoMouse: App {
                         }
                         appState.mode = .command(command: currentCommand, suggestionIndex: next)
                         return
+                    default:
+                        break
                     }
-                    // Plain key: append. Allow Shift for capitals, reject
+                    //TODO move to neomouseUtils
+                    func appendCharacterToCommand() {
+                        guard let character = event.characters else { return }
+                        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                        guard !mods.contains(.command),
+                            !mods.contains(.control),
+                            !mods.contains(.option)
+                        else { return }
+                        // IMPORTANT: write back to appState.mode so @Published fires
+                        // and the SwiftUI CommandLineView redraws. Mutating a local
+                        // `var currentCommand` only touches a snapshot. Typing
+                        // resets the cycle position.
+                        appState.mode = .command(command: currentCommand + character, suggestionIndex: nil)
+                    }
+                    switch event.charactersIgnoringModifiers {
+                    //Same fn as Tab
+                    case "n", "N":
+                        guard
+                            event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.control)
+                                && event.modifierFlags.intersection(.deviceIndependentFlagsMask).isSubset(of: [
+                                    .control, .shift, .capsLock,
+                                ])
+                        else {
+                            return appendCharacterToCommand()
+                        }
+                        let matches = CommandLine.shared.filtered
+                        guard !matches.isEmpty else { return }
+                        let next: Int
+                        if let currentSuggestionIndex = suggestionIndex {
+                            next = (currentSuggestionIndex + 1) % matches.count
+                        } else {
+                            next = 0
+                        }
+                        appState.mode = .command(command: currentCommand, suggestionIndex: next)
+                        return
+                    //Same fn as Shift + Tab
+                    case "p", "P":
+                        guard
+                            event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.control)
+                                && event.modifierFlags.intersection(.deviceIndependentFlagsMask).isSubset(of: [
+                                    .control, .shift, .capsLock,
+                                ])
+                        else {
+                            return appendCharacterToCommand()
+                        }
+                        let matches = CommandLine.shared.filtered
+                        guard !matches.isEmpty else { return }
+                        let next: Int
+                        if let currentSuggestionIndex = suggestionIndex {
+                            next = (currentSuggestionIndex - 1 + matches.count) % matches.count
+                        } else {
+                            next = matches.count - 1
+                        }
+                        appState.mode = .command(command: currentCommand, suggestionIndex: next)
+                        return
+                    // For all other Plain key: append. Allow Shift for capitals, reject
                     // Cmd / Ctrl / Opt chords (let those flow to the OS).
-                    guard let character = event.characters else { return }
-                    let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                    guard !mods.contains(.command),
-                        !mods.contains(.control),
-                        !mods.contains(.option)
-                    else { return }
-                    // IMPORTANT: write back to appState.mode so @Published fires
-                    // and the SwiftUI CommandLineView redraws. Mutating a local
-                    // `var currentCommand` only touches a snapshot. Typing
-                    // resets the cycle position.
-                    appState.mode = .command(
-                        command: currentCommand + character,
-                        suggestionIndex: nil
-                    )
-                    return
-                // default:
-                //     debug(
-                //         "Should not happen: Reached default case in keyMonitor with mode:\(appState.mode) and keyCode:\(event.keyCode)"
-                //     )
-                //     break
+                    default:
+                        return appendCharacterToCommand()
+                    }
                 case .menu:
                     switch event.keyCode {
                     default:

@@ -65,9 +65,17 @@ extension NeoMouse {
                         //   Shift alone is NOT treated as a modifier so capital-letter
                         //   motions ('V', 'G', 'M') still get handled.
                         if isAllowTapThrough {
+                            let isCommandOrMenuMode =
+                                switch state.mode {
+                                case .command, .menu: true
+                                default: false
+                                }
                             let mods = nsEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                            //IMPORTANT: Disable control when in command or menu mode as they are used
+                            //TODO think about what to do with Ctrl w in normal mode
                             let hasSystemMod =
-                                mods.contains(.command) || mods.contains(.control) || mods.contains(.option)
+                                mods.contains(.command) || (!isCommandOrMenuMode && mods.contains(.control))
+                                || mods.contains(.option)
                             let keyCode = nsEvent.keyCode
                             let isSpecialKey: Bool = {
                                 switch keyCode {
@@ -77,9 +85,7 @@ extension NeoMouse {
                                     charToKeyCodeMap["RightArrow"],
                                     charToKeyCodeMap["DownArrow"], charToKeyCodeMap["UpArrow"]:
                                     //IMPORTANT: Disable specialKeys when in command or menu mode as these keys will be used
-                                    if case .command = state.mode { return false }
-                                    if case .menu = state.mode { return false }
-                                    return true
+                                    return isCommandOrMenuMode ? false : true
                                 default:
                                     return false
                                 }

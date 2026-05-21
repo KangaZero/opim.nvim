@@ -96,13 +96,16 @@ public struct Config: Decodable, Sendable {
         /// Single source of truth for the fallback list when settings.toml is
         /// missing or has no `[commands]` section. Update here; nowhere else.
         public static let defaultAvailable: [Command] = [
-            .numbers, .nu, .relativenumbers, .rnu, .help, .h, .delmarks, .delm, .registers, .reg,
+            .numbers, .nu, .relativenumbers, .rnu, .cursorline, .cul, .cursorcolumn, .cuc, .help, .h, .delmarks, .delm,
+            .registers, .reg, .jumps, .ju, .q, .quit,
         ]
     }
 
     public enum Command: String, Decodable, Sendable {
         case numbers, nu
         case relativenumbers, rnu
+        case cursorline, cul
+        case cursorcolumn, cuc
         case registers, reg
         case jumps, ju
         case help, h
